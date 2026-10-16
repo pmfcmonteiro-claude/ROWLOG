@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0c1820">
+<meta name="theme-color" content="#0b1315">
 <title>Merach Row Log</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,23 +14,18 @@
 /* Layout: erg monitor. Free row = split hero + switchable views + chart + workout library.
    Workout mode = one full-height screen with only the running workout (true fullscreen on phones). */
 :root{
-  --bg:#eaf0f2; --panel:#f7fafb; --ink:#10222e; --muted:#5b6d78; --line:#d3dde2; --rest:#dfe7eb;
-  --accent:#d9531f; --ok:#1f8a5b; --warn:#b7791f; --bad:#c03a3a;
+  /* River at night: deep water, bone type, blade-red accent, buoy yellow */
+  --bg:#0b1315; --panel:#121d20; --ink:#f0eadd; --muted:#8c9a97; --line:#233431; --rest:#16252a;
+  --accent:#ff5b35; --buoy:#f4c04e; --ok:#4fd6a4; --warn:#f4c04e; --bad:#ff6b6b;
   --z1:#8a9aa6; --z2:#3b82c4; --z3:#2f9e5b; --z4:#e08a1e; --z5:#d64545;
-  --display:"Saira Condensed","Arial Narrow",sans-serif;
-  --body:"IBM Plex Sans",system-ui,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,monospace;
-  color-scheme:light;
+  --display:"Big Shoulders Display","Saira Condensed","Arial Narrow",sans-serif;
+  --body:"Instrument Sans",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0c1820; --panel:#132430; --ink:#e4edf1; --muted:#8aa0ac; --line:#21384a; --rest:#1a2e3b;
-  --accent:#f26a33; --ok:#3fbf86; --warn:#e0a84a; --bad:#ef6b6b; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0c1820; --panel:#132430; --ink:#e4edf1; --muted:#8aa0ac; --line:#21384a; --rest:#1a2e3b;
-  --accent:#f26a33; --ok:#3fbf86; --warn:#e0a84a; --bad:#ef6b6b; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);
+body{background:radial-gradient(900px 520px at 85% -8%,rgba(255,91,53,.13),transparent 62%),radial-gradient(800px 480px at -15% 105%,rgba(60,192,176,.09),transparent 60%),var(--bg);background-attachment:fixed;color:var(--ink);font:15px/1.5 var(--body);
   padding:env(safe-area-inset-top,0) 16px env(safe-area-inset-bottom,0)}
 .wrap{max-width:760px;margin:0 auto;padding-block:16px 40px;display:flex;flex-direction:column;gap:16px}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -44,7 +39,7 @@ h2{font:700 1.25rem/1.1 var(--display);text-transform:uppercase;letter-spacing:.
 button,select,input{font:600 .9rem var(--body);border-radius:8px;padding:9px 13px;
   border:1px solid var(--line);background:var(--panel);color:var(--ink)}
 button{cursor:pointer}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary{background:var(--accent);border-color:var(--accent);color:#1a0703;font-weight:700}
 :is(button,select,input):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .label{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
@@ -151,6 +146,63 @@ body[data-phase="rest"] .ft{background:var(--bg)}
   .wfocus{gap:8px} .fleft{font-size:clamp(3.5rem,18vh,6rem)} .ft b{font-size:2rem}
 }
 [hidden]{display:none !important}
+/* ---------- home ---------- */
+.hhead{display:flex;flex-direction:column;align-items:stretch;gap:14px}
+.hh-bar{display:flex;justify-content:space-between;align-items:center}
+.brand{display:inline-flex;align-items:center;gap:10px;font:800 1.05rem var(--display);letter-spacing:.2em;text-transform:uppercase}
+.brand svg{width:46px;height:13px}
+.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.greet{font:900 clamp(3rem,13vw,6rem)/.84 var(--display);max-width:100%;overflow-wrap:anywhere;text-transform:uppercase;letter-spacing:-.005em;margin:4px 0 0}
+.greet em{font-style:normal;color:var(--accent)}
+.hh-week{display:flex;gap:26px;flex-wrap:wrap}
+.hh-week b{display:block;font:800 1.75rem/1 var(--display);font-variant-numeric:tabular-nums}
+.hh-week span{font:500 .66rem var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+.connect-card{background:var(--panel);border:1px solid var(--line);border-radius:18px}
+.tp{display:flex;flex-direction:column;gap:12px}
+.tp-q,.deck-head h2{font:800 1.5rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em;margin:0}
+.tp-dial{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding-bottom:12px;
+  background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 7px) bottom/100% 6px no-repeat}
+.tp-dial button{display:flex;flex-direction:column;align-items:center;padding:10px 0 8px;border-radius:14px;background:var(--panel);border:1px solid var(--line);color:var(--muted);transition:transform .15s,background .15s}
+.tp-dial b{font:800 1.9rem/1 var(--display);color:var(--ink);font-variant-numeric:tabular-nums}
+.tp-dial span{font:500 .6rem var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.tp-dial button[aria-checked="true"]{background:var(--accent);border-color:var(--accent);color:#1a0703;transform:translateY(-3px)}
+.tp-dial button[aria-checked="true"] b{color:#1a0703}
+.trainings{gap:16px}
+.deck-head{display:flex;justify-content:space-between;align-items:baseline}
+.hint{font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.deck{display:grid;grid-auto-flow:column;grid-auto-columns:min(82vw,330px);gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;
+  margin-inline:-16px;padding:4px 16px 14px;scrollbar-width:none;overscroll-behavior-x:contain}
+.deck::-webkit-scrollbar{display:none}
+@media (min-width:900px){.deck{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));overflow:visible;margin-inline:0;padding-inline:0}.hint{display:none}}
+.poster{scroll-snap-align:center;position:relative;isolation:isolate;display:flex;flex-direction:column;gap:10px;padding:18px 16px 16px;border-radius:24px;min-height:440px;overflow:hidden;
+  background:linear-gradient(165deg,color-mix(in srgb,var(--c) 24%,var(--panel)) 0%,var(--panel) 48%);border:1px solid color-mix(in srgb,var(--c) 28%,var(--line))}
+.poster.sug{box-shadow:0 0 0 2px var(--c),0 18px 40px -18px color-mix(in srgb,var(--c) 60%,transparent)}
+.p-wm{position:absolute;right:-6px;top:56px;z-index:-1;font:900 11rem/.8 var(--display);color:var(--c);opacity:.08;pointer-events:none}
+.p-top{display:flex;align-items:center;gap:10px}
+.p-top svg{width:86px;height:23px;flex:none}
+.p-tag{font:500 .68rem var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--c)}
+.p-sug{margin-left:auto;font:700 .62rem var(--mono);text-transform:uppercase;letter-spacing:.1em;background:var(--c);color:#111;padding:3px 9px;border-radius:999px}
+.p-name{font:900 2.7rem/.88 var(--display);text-transform:uppercase;margin:6px 0 0;text-wrap:balance}
+.p-detail{font:700 .98rem var(--body);color:var(--c)}
+.p-desc{margin:0;font-size:.88rem;line-height:1.45;color:var(--muted)}
+.p-prof{margin-top:auto}
+.p-prof svg{width:100%;height:58px;display:block}
+.p-prof .pw{fill:var(--c)} .p-prof .pe{fill:color-mix(in srgb,var(--c) 38%,transparent)} .p-prof .pr{fill:var(--line)}
+.p-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid color-mix(in srgb,var(--c) 22%,var(--line));padding-top:10px}
+.p-stats b{display:block;font:800 1.55rem/1 var(--display);font-variant-numeric:tabular-nums}
+.p-stats span{font:500 .6rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.p-note{font:500 .7rem var(--mono);color:var(--buoy)}
+.p-go{background:var(--c);border:0;color:#111;font:800 1.15rem var(--display);letter-spacing:.14em;text-transform:uppercase;padding:14px;border-radius:14px}
+.p-go:active{transform:scale(.98)}
+.justrow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;width:100%;padding:16px 18px;border-radius:18px;border:1px dashed var(--line);background:transparent;color:var(--ink);text-align:left}
+.justrow span{font:800 1.5rem/1 var(--display);text-transform:uppercase}
+.justrow small{color:var(--muted);font-size:.85rem}
+@media (prefers-reduced-motion:no-preference){
+  .poster{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+  .poster:nth-child(2){animation-delay:.05s} .poster:nth-child(3){animation-delay:.1s} .poster:nth-child(4){animation-delay:.15s}
+  @keyframes rise{from{transform:translateY(14px);opacity:.4}}
+}
+
 /* pages: home (connect + choose a training) and free row (live dashboard) */
 @media (max-width:600px){
   .lib{grid-template-columns:1fr;gap:8px}
@@ -379,8 +431,19 @@ body[data-phase="rest"] .g-phase{color:var(--muted)}
 </head>
 <body data-view="dash" data-page="home">
 <div class="wrap">
-  <header class="home"><h1>Merach Row Log</h1></header>
-  <section class="panel connect-card home">
+  <header class="home hhead">
+    <div class="hh-bar">
+      <span class="brand"><svg viewBox="0 0 120 32" aria-hidden="true"><line x1="0" y1="16" x2="40" y2="16" stroke="#f0eadd" stroke-opacity=".6" stroke-width="3"/><path d="M38 16C44 6 68 3 98 4C111 4.5 118 9 118 16C118 23 111 27.5 98 28C68 29 44 26 38 16Z" fill="#ff5b35"/></svg>Row Log</span>
+      <button id="openHist" class="ghost">History</button>
+    </div>
+    <h1 class="greet" id="greet">Evening<br><em>row.</em></h1>
+    <div class="hh-week">
+      <div><b id="yrWeek">0 m</b><span>this week</span></div>
+      <div><b id="yrCount">0</b><span>sessions</span></div>
+      <div><b id="yrK2">–</b><span>best 2k</span></div>
+    </div>
+  </header>
+  <section class="connect-card home">
     <div class="status" id="status" data-s="demo"><span class="dot"></span><span id="statusText">Demo data — connect your rower</span></div>
     <div class="row">
       <button id="installBtn" hidden>Install app</button>
@@ -388,14 +451,6 @@ body[data-phase="rest"] .g-phase{color:var(--muted)}
       <button class="primary" id="connect">Connect rower</button>
     </div>
     <button class="linkbtn" id="connectAll">Rower not in the list? Show all devices</button>
-  </section>
-  <section class="panel yourrow home">
-    <div class="yr-stats">
-      <div><div class="label">This week</div><b id="yrWeek">0 m</b></div>
-      <div><div class="label">Sessions</div><b id="yrCount">0</b></div>
-      <div><div class="label">Best 2000 m</div><b id="yrK2">–</b></div>
-    </div>
-    <button id="openHist">History</button>
   </section>
   <header class="hist freebar">
     <button id="histBack">← Trainings</button>
@@ -519,8 +574,13 @@ body[data-phase="rest"] .g-phase{color:var(--muted)}
   </section>
 
   <section class="home trainings">
-    <h2>Choose a training</h2>
-    <div class="lib" id="lib"></div>
+    <div class="tp">
+      <div class="tp-q">How long have you got?</div>
+      <div class="tp-dial" id="tpDial" role="radiogroup" aria-label="Session length"></div>
+    </div>
+    <div class="deck-head"><h2>Pick your session</h2><span class="hint">Swipe →</span></div>
+    <div class="deck" id="lib"></div>
+    <button class="justrow" id="freeBtn"><span>Just row</span><small>Free row · live stats, no plan</small></button>
   </section>
 
   <details class="panel settings-box home">
@@ -704,33 +764,72 @@ const warm = (t=300) => ({...W(t, [18,20], 22, 4, 'Warm-up'), easy:true});
 const cool = (t=180) => ({...W(t, [18,20], 25, 3, 'Cool-down'), easy:true});
 const rep = (n, f) => Array.from({length:n}, (_, i) => f(i)).flat();
 
+/* Workouts rebuild themselves for the time you have. build(T) gets the session length in seconds. */
+let selMin = +store.get('selMin', '20') || 20;
+const TIMES = [10, 15, 20, 30, 45, 60];
+const r10 = x => Math.max(10, Math.round(x / 10) * 10);
+const clampN = (x, a, b) => Math.max(a, Math.min(b, x));
+function frame(T){ const wu = clampN(r10(T * .15), 120, 300), cd = clampN(r10(T * .1), 60, 180); return {wu, cd, main: T - wu - cd}; }
 const WORKOUTS = [
-  {id:'ladder', name:'Rate Ladder 20–26', tag:'Technique', desc:'Step the rate up to 26 and back down at one resistance. Hold the split steady and let the rate do the work.',
-    segs:[W(180,[20,20],18,6),W(120,[22,22],14,6),W(60,[24,24],10,6),W(60,[26,26],6,6),W(60,[24,24],10,6),W(120,[22,22],14,6),W(180,[20,20],18,6)]},
-  {id:'climb', name:'Resistance Climb', tag:'Strength', desc:'Rate stays at 22 while resistance steps from 5 up to 11 and back. Keep the drive long and let the split follow the load.',
-    segs:[warm(240), ...[5,7,9,11,9,7,5].map((r,i) => W(180,[22,22],[18,16,13,10,13,16,18][i],r)), cool()]},
-  {id:'sixmin', name:'Six × 1 Minute', tag:'Intervals', desc:'Two sets of three hard minutes with a minute easy between each, three minutes between sets.',
-    segs:[warm(240), ...rep(3,i=>[W(60,[26,28],2,9), R(i<2?60:180)]), ...rep(3,i=>[W(60,[24,26],4,9), ...(i<2?[R(60)]:[])]), cool()]},
-  {id:'pyramid', name:'Pyramid 15–60 s', tag:'HIIT', desc:'Two short pyramids of 15-30-45-60-45-30-15 s at high rate with 15 s easy between, finishing on a full minute.',
-    segs:[warm(120), ...[15,30,45,60,45,30,15,15,30,45,60,45,30,15].flatMap((t,i)=>[W(t,[28,32],-2,7), R(i===6?30:15)]), W(60,[28,32],-2,7), cool(60)]},
-  {id:'2x1k', name:'2 × 1000 m', tag:'Threshold', desc:'Go out a touch conservative on the first 1000 m so you can match it on the second.',
-    segs:[warm(), D(1000,[24,26],4,8), R(150), D(1000,[24,26],4,8), cool()]},
-  {id:'4x1k', name:'4 × 1000 m', tag:'Threshold', desc:'A staple threshold session. Aim for all four within two seconds of each other.',
-    segs:[warm(), ...rep(4,i=>[D(1000,[24,26],5,8), ...(i<3?[R(180)]:[])]), cool()]},
-  {id:'8x500', name:'8 × 500 m', tag:'Speed', desc:'Fast 500s at just under 2k pace with two minutes easy between.',
-    segs:[warm(), ...rep(8,i=>[D(500,[28,30],-2,9), ...(i<7?[R(120)]:[])]), cool()]},
-  {id:'30r20', name:'30 min at 20', tag:'Endurance', desc:'Classic steady state with the rate capped at 20. Chase distance through power, not rate.',
-    segs:[W(1800,[20,20],14,7)]},
-  {id:'3x10', name:'3 × 10 min', tag:'Endurance', desc:'Three steady pieces building the rate: 20, then 22, then 24.',
-    segs:[W(600,[20,20],16,7), R(120), W(600,[22,22],12,7), R(120), W(600,[24,24],8,7)]},
-  {id:'2k', name:'2000 m Test', tag:'Test', desc:'The standard benchmark. Even splits from start to finish; the result can update your 2k split.',
-    segs:[warm(), D(2000,[28,32],0,8,'2000 m test'), cool()]},
+  {id: 'ladder', name: 'Rate Ladder', tag: 'Technique', blade: 'stripes', color: '#3cc0b0', min: 8,
+    desc: 'Step the rate up to 26 and back down at one resistance. Hold the split steady and let the rate do the work.',
+    build(T){ const f = frame(T), w = [3, 2, 1, 1, 1, 2, 3], r = [20, 22, 24, 26, 24, 22, 20], o = [18, 14, 10, 6, 10, 14, 18];
+      return {detail: '20 → 26 → 20 spm · res 6', segs: [warm(f.wu), ...w.map((x, i) => W(r10(f.main * x / 13), [r[i], r[i]], o[i], 6)), cool(f.cd)]}; }},
+  {id: 'climb', name: 'Resistance Climb', tag: 'Strength', blade: 'hoops', color: '#f4c04e', min: 12,
+    desc: 'Rate stays at 22 while resistance climbs to 11 and back. Long drive, let the split follow the load.',
+    build(T){ const f = frame(T), rs = [5, 7, 9, 11, 9, 7, 5], o = [18, 16, 13, 10, 13, 16, 18], t = r10(f.main / 7);
+      return {detail: 'Res 5 → 11 → 5 at 22 spm', segs: [warm(f.wu), ...rs.map((r, i) => W(t, [22, 22], o[i], r)), cool(f.cd)]}; }},
+  {id: 'sixmin', name: 'Minute On', tag: 'Intervals', blade: 'chevron', color: '#ff5b35', min: 10,
+    desc: 'Hard minutes at a high rate, a minute easy between. Longer sessions split into two sets.',
+    build(T){
+      const f = frame(T); let n = clampN(Math.floor((f.main + 60) / 120), 3, 16); const two = n >= 6;
+      if (two) n = clampN(Math.floor((f.main - 60) / 120), 6, 16);
+      const a = two ? Math.ceil(n / 2) : n, b = n - a, segs = [warm(f.wu)];
+      for (let i = 0; i < a; i++) { segs.push(W(60, [26, 28], 2, 9)); if (i < a - 1 || b) segs.push(R(i < a - 1 ? 60 : 180)); }
+      for (let i = 0; i < b; i++) { segs.push(W(60, [24, 26], 4, 9)); if (i < b - 1) segs.push(R(60)); }
+      segs.push(cool(f.cd)); return {detail: `${n} × 1 min hard${two ? ' · 2 sets' : ''}`, segs}; }},
+  {id: 'pyramid', name: 'Pyramid', tag: 'HIIT', blade: 'diamond', color: '#ff4f8b', min: 8,
+    desc: 'Pyramids of 15-30-45-60-45-30-15 s at a high rate with 15 s easy between, finishing on a full minute.',
+    build(T){
+      const f = frame(T), unit = [15, 30, 45, 60, 45, 30, 15], k = clampN(Math.floor((f.main - 60) / 345), 1, 4), segs = [warm(f.wu)];
+      for (let p = 0; p < k; p++) unit.forEach((t, i) => { segs.push(W(t, [28, 32], -2, 7)); segs.push(R(i === 6 && p < k - 1 ? 30 : 15)); });
+      segs.push(W(60, [28, 32], -2, 7), cool(f.cd)); return {detail: `${k} pyramid${k > 1 ? 's' : ''} · 15–60 s`, segs}; }},
+  {id: 'k1', name: '1000 m Repeats', tag: 'Threshold', blade: 'halves', color: '#ff8a3d', min: 15,
+    desc: 'Threshold kilometres. Aim to keep every piece within two seconds of the first.',
+    build(T){
+      const f = frame(T), t = 2 * (base2k + 5), rest = r10(clampN(t * .6, 120, 180)), n = clampN(Math.floor((f.main + rest) / (t + rest)), 1, 6), segs = [warm(f.wu)];
+      for (let i = 0; i < n; i++) { segs.push(D(1000, [24, 26], 5, 8)); if (i < n - 1) segs.push(R(rest)); }
+      segs.push(cool(f.cd)); return {detail: `${n} × 1000 m · ${fmtTime(rest)} rest`, segs}; }},
+  {id: 'k500', name: '500 m Repeats', tag: 'Speed', blade: 'tips', color: '#e84a5f', min: 12,
+    desc: 'Fast 500s just under your 2k pace, two minutes easy between.',
+    build(T){
+      const f = frame(T), t = base2k - 2, rest = 120, n = clampN(Math.floor((f.main + rest) / (t + rest)), 2, 10), segs = [warm(f.wu)];
+      for (let i = 0; i < n; i++) { segs.push(D(500, [28, 30], -2, 9)); if (i < n - 1) segs.push(R(rest)); }
+      segs.push(cool(f.cd)); return {detail: `${n} × 500 m · 2:00 rest`, segs}; }},
+  {id: 'steady', name: 'Steady State', tag: 'Endurance', blade: 'plain', color: '#5b9cf0', min: 10,
+    desc: 'Long and steady with the rate capped at 20. Chase distance through power, not rate.',
+    build(T){ return {detail: `${Math.round(T / 60)} min at 20 spm`, segs: [W(T, [20, 20], 14, 7)]}; }},
+  {id: 'builder', name: 'Rate Builder', tag: 'Endurance', blade: 'triple', color: '#7fd17a', min: 15,
+    desc: 'Three steady pieces building the rate: 20, then 22, then 24.',
+    build(T){ const rest = T >= 1800 ? 120 : 60, p = r10((T - 2 * rest) / 3);
+      return {detail: `3 × ${fmtTime(p)} · 20 / 22 / 24 spm`, segs: [W(p, [20, 20], 16, 7), R(rest), W(p, [22, 22], 12, 7), R(rest), W(p, [24, 24], 8, 7)]}; }},
+  {id: '2k', name: '2000 m Test', tag: 'Test', blade: 'cross', color: '#f0eadd', fixed: true, min: 0,
+    desc: 'The benchmark. Even splits from start to finish; the result can update your 2k split.',
+    build(){ return {detail: '2000 m flat out', segs: [warm(), D(2000, [28, 32], 0, 8, '2000 m test'), cool()]}; }},
 ];
 // target heart-rate zones
-const WZ = {ladder: [2, 3], climb: [3, 3], sixmin: [4, 5], pyramid: [4, 5], '2x1k': [4, 4], '4x1k': [4, 4], '8x500': [4, 5], '30r20': [2, 2], '3x10': [2, 3], '2k': [5, 5]};
+const WZ = {ladder: [2, 3], climb: [3, 3], sixmin: [4, 5], pyramid: [4, 5], k1: [4, 4], k500: [4, 5], steady: [2, 2], builder: [2, 3], '2k': [5, 5]};
 for (const w of WORKOUTS) w.zone = WZ[w.id];
-// rests inherit the resistance of the step before them
-for (const w of WORKOUTS) { let last = 4; for (const s of w.segs) { if (s.kind === 'rest') s.res = last; else last = s.res; } }
+// A workout built for a session length; rests inherit the resistance of the step before them
+function planFor(w, min = selMin){
+  const T = Math.max(min, w.min || 0) * 60, p = w.build(T);
+  // fill leftover time: a steady block before the cool-down, or a longer cool-down
+  const left = T - p.segs.reduce((a, s) => a + segSecs(s), 0), cd = p.segs[p.segs.length - 1];
+  if (!w.fixed && left >= 240) p.segs.splice(p.segs.length - 1, 0, R(60), W(r10(left - 60), [20, 22], 16, 6, 'Steady finish'));
+  else if (!w.fixed && left >= 30 && cd?.easy) cd.t = r10(cd.t + left);
+  let last = 4; for (const s of p.segs) { if (s.kind === 'rest') s.res = last; else last = s.res; }
+  return {...w, ...p, mins: Math.round(p.segs.reduce((a, s) => a + segSecs(s), 0) / 60), short: !w.fixed && min < (w.min || 0)};
+}
 
 const parseSplit = s => { const m = String(s).trim().match(/^(\d+):(\d{1,2}(?:\.\d)?)$/); return m ? +m[1]*60 + +m[2] : null; };
 let base2k = parseSplit(store.get('base2k','2:05')) || 125;
@@ -751,26 +850,62 @@ function setPage(pg){
   if (pg === 'home') renderHome();
   window.scrollTo(0, 0); render();
 }
+/* ---------- home: time dial + training deck ---------- */
+const BLADE = 'M38 16C44 6 68 3 98 4C111 4.5 118 9 118 16C118 23 111 27.5 98 28C68 29 44 26 38 16Z';
+function bladeSvg(kind, id){
+  const ink = 'var(--bg)', pat = {
+    plain: '', stripes: `<rect x="66" y="0" width="7" height="32" fill="${ink}"/><rect x="82" y="0" width="7" height="32" fill="${ink}"/>`,
+    hoops: `<rect x="0" y="12" width="120" height="8" fill="${ink}"/>`,
+    chevron: `<path d="M60 0L84 16L60 32L72 32L96 16L72 0Z" fill="${ink}"/>`,
+    diamond: `<path d="M80 6L92 16L80 26L68 16Z" fill="${ink}"/>`,
+    halves: `<rect x="78" y="0" width="42" height="32" fill="${ink}"/>`,
+    tips: `<rect x="0" y="0" width="98" height="32" fill="#f0eadd"/>`,
+    triple: `<rect x="60" y="0" width="4" height="32" fill="${ink}"/><rect x="72" y="0" width="4" height="32" fill="${ink}"/><rect x="84" y="0" width="4" height="32" fill="${ink}"/>`,
+    cross: `<path d="M50 0L120 32M120 0L50 32" stroke="${ink}" stroke-width="6"/>`,
+  }[kind] || '';
+  return `<svg viewBox="0 0 120 32" aria-hidden="true"><defs><clipPath id="bl-${id}"><path d="${BLADE}"/></clipPath></defs>
+    <line x1="0" y1="16" x2="40" y2="16" stroke="#f0eadd" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/>
+    <g clip-path="url(#bl-${id})"><rect width="120" height="32" fill="var(--c)"/>${pat}</g></svg>`;
+}
+function profileSvg(segs){
+  const tot = segs.reduce((a, s) => a + segSecs(s), 0); let x = 0;
+  return `<svg viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true">` + segs.map(s => {
+    const w = segSecs(s) / tot * 300, h = s.kind === 'rest' ? 7 : s.easy ? 15 : 18 + 38 * Math.min(1, s.res / 12) * (0.75 + (s.spm[1] - 18) / 56);
+    const r = `<rect x="${(x + .6).toFixed(1)}" y="${(56 - h).toFixed(1)}" width="${Math.max(.8, w - 1.2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" class="${s.kind === 'rest' ? 'pr' : s.easy ? 'pe' : 'pw'}"/>`;
+    x += w; return r;
+  }).join('') + '</svg>';
+}
+function suggested(){
+  const last = {}; for (const s of loadHist()) if (s.wid && !(s.wid in last)) last[s.wid] = new Date(s.date).getTime();
+  const c = WORKOUTS.filter(w => !w.fixed && (w.min || 0) <= selMin).sort((a, b) => (last[a.id] || 0) - (last[b.id] || 0));
+  return c[0]?.id;
+}
+function renderDial(){
+  $('tpDial').innerHTML = TIMES.map(t => `<button role="radio" aria-checked="${t === selMin}" data-min="${t}"><b>${t}</b><span>min</span></button>`).join('');
+}
+function renderGreet(){
+  const h = new Date().getHours();
+  $('greet').innerHTML = `${h < 5 ? 'Night' : h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening'}<br><em>row.</em>`;
+}
 function renderLib(){
+  const sug = suggested();
+  const order = [...WORKOUTS].sort((a, b) => (b.id === sug) - (a.id === sug));
   $('lib').innerHTML = '';
-  const fr = document.createElement('article'); fr.className = 'panel card free-card';
-  fr.innerHTML = '<div class="meta"><span class="tag">Just row</span><span>No plan</span></div><h3>Free row</h3><p>Live split, power, pace boat and charts.</p><div class="spacer"></div><button>Open</button>';
-  fr.querySelector('button').onclick = () => setPage('free');
-  $('lib').append(fr);
-  for (const w of WORKOUTS) {
-    const total = w.segs.reduce((a,s) => a + segSecs(s), 0);
-    const main = w.segs.filter(s => s.kind === 'work' && !s.easy);
-    const rs = main.map(s => s.res), lo = Math.min(...rs), hi = Math.max(...rs);
-    const card = document.createElement('article'); card.className = 'panel card';
-    card.innerHTML = `<div class="meta"><span class="tag">${w.tag}</span><span>~${Math.round(total/60)} min</span><span>${main.length} ${main.length === 1 ? 'piece' : 'pieces'}</span><span class="res-pill">Res ${lo === hi ? lo : lo + '–' + hi}</span>${w.zone ? `<span class="zchip" data-z="${w.zone[0]}">HR ${zTxt(w.zone)}</span>` : ''}</div>
-      <h3>${w.name}</h3><p>${w.desc}</p><div class="mini" aria-hidden="true"></div><button>Start</button>`;
-    const mini = card.querySelector('.mini');
-    for (const s of w.segs) {
-      const sp = document.createElement('span'); sp.style.flex = segSecs(s); sp.style.height = (s.res / 15 * 100) + '%';
-      if (s.kind === 'rest') sp.className = 'rest'; else if (s.easy) sp.className = 'easy';
-      sp.title = segLabel(s) + ' · resistance ' + s.res; mini.append(sp);
-    }
-    card.querySelector('button').onclick = () => startWorkout(w);
+  for (const w of order) {
+    const p = planFor(w), rs = p.segs.filter(s => s.kind === 'work' && !s.easy).map(s => s.res), lo = Math.min(...rs), hi = Math.max(...rs);
+    const card = document.createElement('article');
+    card.className = 'poster' + (w.id === sug ? ' sug' : ''); card.style.setProperty('--c', w.color);
+    card.innerHTML = `
+      <span class="p-wm" aria-hidden="true">${p.mins}</span>
+      <div class="p-top">${bladeSvg(w.blade, w.id)}<span class="p-tag">${w.tag}</span>${w.id === sug ? '<span class="p-sug">Suggested</span>' : ''}</div>
+      <h3 class="p-name">${w.name}</h3>
+      <div class="p-detail">${p.detail}</div>
+      <p class="p-desc">${w.desc}</p>
+      <div class="p-prof">${profileSvg(p.segs)}</div>
+      <div class="p-stats"><div><b>${p.mins}</b><span>min</span></div><div><b>${lo === hi ? lo : lo + '–' + hi}</b><span>resistance</span></div><div><b>${zTxt(w.zone)}</b><span>heart rate</span></div></div>
+      ${p.short ? `<div class="p-note">Needs ${w.min} min — shortest version shown</div>` : w.fixed ? '<div class="p-note">Fixed length</div>' : ''}
+      <button class="p-go">Start · ${p.mins} min</button>`;
+    card.querySelector('.p-go').onclick = () => startWorkout(planFor(w));
     $('lib').append(card);
   }
 }
@@ -1545,7 +1680,7 @@ function buildWorkoutSession(def, results, done, kcal0){
   const wsecs = work.reduce((a, r) => a + r.secs, 0), wdist = work.reduce((a, r) => a + r.dist, 0);
   const wavg = k => { const xs = work.filter(r => r[k]); const t = xs.reduce((a, r) => a + r.secs, 0); return t ? xs.reduce((a, r) => a + r[k] * r.secs, 0) / t : null; };
   const k2r = def.id === '2k' ? results.find(r => r.seg.d === 2000 && r.dist >= 1990) : null;
-  const m30r = def.id === '30r20' ? results.find(r => r.seg.t === 1800 && r.secs >= 1795) : null;
+  const m30r = def.id === 'steady' ? results.find(r => r.seg.t === 1800 && r.secs >= 1795) : null;
   return {id: Date.now().toString(36), date: new Date().toISOString(), kind: 'workout', wid: def.id, name: def.name, done,
     secs: Math.round(secs), dist: Math.round(dist), split: wdist > 5 ? wsecs / wdist * 500 : null, spm: wavg('spm'), w: wavg('w'),
     kcal: Math.max(0, Math.round(state.kcal - kcal0)), ...hrSummary(),
@@ -1784,6 +1919,9 @@ $('voiceEvery').value = String(voiceEvery);
 $('voiceEvery').onchange = () => { voiceEvery = +$('voiceEvery').value; store.set('voiceEvery', String(voiceEvery)); };
 $('voiceTest').onclick = () => { const was = voiceOn; voiceOn = true; speak('Voice coach ready. 1000 metres at rate 24 to 26. Resistance 8.', true); voiceOn = was; };
 keepAwake();
+renderDial(); renderGreet();
+$('tpDial').onclick = e => { const b = e.target.closest('[data-min]'); if (!b) return; selMin = +b.dataset.min; store.set('selMin', String(selMin)); renderDial(); renderLib(); $('lib').scrollTo({left: 0, behavior: 'smooth'}); };
+$('freeBtn').onclick = () => setPage('free');
 renderLib();
 renderHome();
 startDemo();
