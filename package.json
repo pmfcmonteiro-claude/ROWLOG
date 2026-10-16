@@ -1,0 +1,30 @@
+{
+  "name": "row-log",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Merach Row Log — Android app",
+  "scripts": {
+    "build:native": "esbuild native-entry.js --bundle --format=iife --minify --outfile=www/native.js",
+    "sync": "npm run build:native && cap sync android",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "8.3.0",
+    "@capacitor-community/keep-awake": "8.0.1",
+    "@capacitor-community/text-to-speech": "8.0.2",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/filesystem": "8.1.3",
+    "@capacitor/share": "8.0.2",
+    "@capacitor/status-bar": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@fontsource/outfit": "5.3.0",
+    "@fontsource/saira-condensed": "5.3.0",
+    "esbuild": "0.25.10"
+  }
+}

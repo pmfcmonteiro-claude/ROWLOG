@@ -1,0 +1,51 @@
+name: Build Android app
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm ci
+
+      - name: Copy the app into the Android project
+        run: npm run sync
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: row-log-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      # Publish the APK as a release so it can be downloaded straight from the phone
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk RowLog.apk
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" RowLog.apk --title "Row Log $TAG" --notes "Tap RowLog.apk to download and install." --latest

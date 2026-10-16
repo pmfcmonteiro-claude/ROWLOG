@@ -1,0 +1,1792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c1820">
+<title>Merach Row Log</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="fonts/fonts.css">
+<script src="native.js"></script>
+<style>
+/* Layout: erg monitor. Free row = split hero + switchable views + chart + workout library.
+   Workout mode = one full-height screen with only the running workout (true fullscreen on phones). */
+:root{
+  --bg:#eaf0f2; --panel:#f7fafb; --ink:#10222e; --muted:#5b6d78; --line:#d3dde2; --rest:#dfe7eb;
+  --accent:#d9531f; --ok:#1f8a5b; --warn:#b7791f; --bad:#c03a3a;
+  --z1:#8a9aa6; --z2:#3b82c4; --z3:#2f9e5b; --z4:#e08a1e; --z5:#d64545;
+  --display:"Saira Condensed","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1820; --panel:#132430; --ink:#e4edf1; --muted:#8aa0ac; --line:#21384a; --rest:#1a2e3b;
+  --accent:#f26a33; --ok:#3fbf86; --warn:#e0a84a; --bad:#ef6b6b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1820; --panel:#132430; --ink:#e4edf1; --muted:#8aa0ac; --line:#21384a; --rest:#1a2e3b;
+  --accent:#f26a33; --ok:#3fbf86; --warn:#e0a84a; --bad:#ef6b6b; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);
+  padding:env(safe-area-inset-top,0) 16px env(safe-area-inset-bottom,0)}
+.wrap{max-width:760px;margin:0 auto;padding-block:16px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:700 1.6rem/1 var(--display);letter-spacing:.02em;margin:0;text-transform:uppercase}
+h2{font:700 1.25rem/1.1 var(--display);text-transform:uppercase;letter-spacing:.03em;margin:0}
+.status{display:inline-flex;align-items:center;gap:8px;font:500 .8rem var(--mono);color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.status[data-s="live"] .dot{background:var(--ok)}
+.status[data-s="demo"] .dot{background:var(--warn)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,input{font:600 .9rem var(--body);border-radius:8px;padding:9px 13px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+button{cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:is(button,select,input):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.label{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.err{color:var(--bad);font-size:.9rem}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:8px 12px;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+
+/* free-row hero */
+.hero{padding:16px 20px;display:grid;grid-template-columns:1fr auto;align-items:end;gap:8px}
+.split{font:700 clamp(4rem,18vw,7.5rem)/.9 var(--display);font-variant-numeric:tabular-nums;color:var(--accent)}
+.split small{font-size:.28em;color:var(--muted);margin-left:6px}
+.timer{text-align:right;font:500 clamp(1.8rem,7vw,2.6rem)/1 var(--display);font-variant-numeric:tabular-nums}
+body[data-view="focus"] .split{font-size:clamp(6rem,30vw,12rem)}
+body[data-view="focus"] .grid,body[data-view="boat"] .grid{display:none}
+body:not([data-view="boat"]) #boatPanel{display:none}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.m{background:var(--panel);padding:12px 14px;min-width:0}
+.m b{display:block;font:700 2rem/1.05 var(--display);font-variant-numeric:tabular-nums}
+.m b span{font:500 .8rem var(--mono);color:var(--muted);margin-left:4px}
+@media (max-width:480px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+.chart{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.chart select{padding:6px 10px;font-weight:500}
+canvas{width:100%;display:block}
+#trace{height:150px}
+#boat{height:170px}
+.gap{font:700 1.8rem/1 var(--display);font-variant-numeric:tabular-nums}
+
+/* library */
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.card{padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card h3{font:700 1.2rem/1.1 var(--display);margin:0;text-transform:uppercase}
+.card p{margin:0;font-size:.88rem;color:var(--muted)}
+.meta{display:flex;gap:10px;font:500 .75rem var(--mono);color:var(--muted);flex-wrap:wrap}
+.tag{color:var(--accent)}
+.res-pill{color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:0 8px}
+.mini{display:flex;align-items:flex-end;height:30px;gap:1px;margin-top:auto;border-bottom:1px solid var(--line)}
+.mini span{background:var(--accent);border-radius:2px 2px 0 0;min-height:3px}
+.mini span.rest{background:var(--line)}
+.mini span.easy{background:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.card button{align-self:flex-start}
+.settings{padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.settings input{width:5.5em;font-family:var(--mono)}
+.note{font-size:.85rem;color:var(--muted);max-width:65ch;margin:0}
+
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.9rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.summary{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.tablewrap{overflow-x:auto}
+
+/* ---------- workout focus mode ---------- */
+.wfocus{display:flex;flex-direction:column;gap:14px;padding:18px;min-height:calc(100dvh - 32px)}
+body[data-mode="workout"] .wrap > :not(.skin){display:none !important}
+body:not([data-mode="workout"]) .skin,.skin:not(.on){display:none !important}
+body[data-mode="workout"]:has(.skin.fixed.on){overflow:hidden}
+body[data-phase="rest"] .wfocus{background:var(--rest)}
+.ftop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.fname{font:700 1.3rem/1.1 var(--display);text-transform:uppercase}
+.ftop button{padding:7px 11px;font-size:.85rem}
+.fphase{font:500 .8rem var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--accent)}
+body[data-phase="rest"] .fphase{color:var(--muted)}
+.fnow{font:700 clamp(1.6rem,7vw,2.4rem)/1.05 var(--display);text-transform:uppercase;text-wrap:balance}
+.fleft{font:700 clamp(5rem,26vw,10rem)/.85 var(--display);font-variant-numeric:tabular-nums;color:var(--accent)}
+body[data-phase="rest"] .fleft{color:var(--ink)}
+.ftiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ft{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0;display:flex;flex-direction:column;gap:2px}
+body[data-phase="rest"] .ft{background:var(--bg)}
+.ft b{font:700 clamp(2.2rem,10vw,3.4rem)/1 var(--display);font-variant-numeric:tabular-nums}
+.ft span{font:500 .78rem var(--mono);color:var(--muted)}
+.ft[data-st="ok"]{border-color:var(--ok)} .ft[data-st="ok"] b{color:var(--ok)}
+.ft[data-st="warn"]{border-color:var(--warn)} .ft[data-st="warn"] b{color:var(--warn)}
+.ft[data-st="bad"]{border-color:var(--bad)} .ft[data-st="bad"] b{color:var(--bad)}
+#ftRes b{color:var(--ink)}
+#ftRes.change{border-color:var(--accent);animation:pulse 1s ease-in-out 4}
+#ftRes.change span{color:var(--accent);font-weight:600}
+@keyframes pulse{50%{background:color-mix(in srgb,var(--accent) 22%,var(--panel))}}
+.timeline{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px}
+.fmid{display:flex;flex-direction:column;gap:14px;margin-block:auto}
+.ftop .row{flex-wrap:nowrap}
+.timeline span{background:var(--line);position:relative;overflow:hidden}
+.timeline span.work{background:color-mix(in srgb,var(--accent) 30%,var(--line))}
+.timeline span i{position:absolute;inset:0 auto 0 0;background:var(--accent)}
+.timeline span.rest i{background:var(--muted)}
+.fbottom{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.95rem}
+.fnext{font-weight:600}
+.ftot{font:500 .85rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.factions{display:flex;gap:10px}
+.factions button{flex:1;padding:14px;font-size:1rem}
+
+@media (max-width:760px){
+  body[data-mode="workout"]{padding:0}
+  body[data-mode="workout"] .wrap{padding-block:0;max-width:none}
+  .wfocus{border:0;border-radius:0;min-height:100dvh;
+    padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(14px + env(safe-area-inset-bottom,0px))}
+  .ftiles{gap:8px}
+  .ft{padding:8px 10px}
+}
+@media (max-height:500px) and (orientation:landscape){
+  .wfocus{gap:8px} .fleft{font-size:clamp(3.5rem,18vh,6rem)} .ft b{font-size:2rem}
+}
+[hidden]{display:none !important}
+/* pages: home (connect + choose a training) and free row (live dashboard) */
+@media (max-width:600px){
+  .lib{grid-template-columns:1fr;gap:8px}
+  .card{display:grid;grid-template-columns:1fr auto;grid-template-areas:"meta btn" "title btn" "mini mini";gap:4px 12px;padding:12px 14px}
+  .card .meta{grid-area:meta} .card h3{grid-area:title;font-size:1.15rem}
+  .card p,.card .spacer{display:none}
+  .card .mini{grid-area:mini;height:18px;margin-top:6px}
+  .card button{grid-area:btn;align-self:center;padding:10px 16px}
+}
+body:not([data-page="free"]) .free{display:none !important}
+body:not([data-page="home"]) .home{display:none !important}
+body:not([data-page="history"]) .hist{display:none !important}
+.connect-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 18px}
+.connect-card .status{font-size:.9rem}
+.connect-card #connect{padding:12px 18px;font-size:1rem}
+.trainings{display:flex;flex-direction:column;gap:12px}
+.freebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.freebar h1{flex:1}
+.settings-box{padding:12px 16px;display:flex;flex-direction:column;gap:14px}
+.settings-box > summary{cursor:pointer;font-weight:600}
+.settings-box[open] > summary{margin-bottom:12px}
+.set-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.set-row input{width:5.5em;font-family:var(--mono)}
+.settings-box .note{margin-bottom:8px}
+.card.free-card{border-style:dashed}
+.card .spacer{margin-top:auto}
+
+/* home: your rowing */
+.linkbtn{border:0;background:none;padding:0;font-size:.8rem;font-weight:500;color:var(--muted);text-decoration:underline;flex-basis:100%;text-align:left}
+body[data-app] .connect-card #installBtn{display:none}
+.connect-card .row{flex-wrap:wrap}
+#hrBtn.on{border-color:var(--z5);color:var(--z5)}
+.yourrow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px}
+.yr-stats{display:flex;gap:22px;flex-wrap:wrap}
+.yr-stats b{font:700 1.5rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+
+/* heart-rate zone bar */
+.hrbar{display:flex;flex-direction:column;gap:6px}
+.hz{display:flex;gap:3px;height:12px;align-items:center}
+.hz i{flex:1;height:8px;border-radius:3px;background:color-mix(in srgb,var(--zc) 30%,transparent)}
+.hz i[data-z="1"]{--zc:var(--z1)} .hz i[data-z="2"]{--zc:var(--z2)} .hz i[data-z="3"]{--zc:var(--z3)} .hz i[data-z="4"]{--zc:var(--z4)} .hz i[data-z="5"]{--zc:var(--z5)}
+.hz i.tgt{box-shadow:inset 0 0 0 2px var(--zc)}
+.hz i.lit{height:12px;background:var(--zc);box-shadow:none}
+.hrtxt{font:600 .85rem var(--body)}
+.hrbar[data-st="ok"] .hrtxt{color:var(--ok)} .hrbar[data-st="warn"] .hrtxt{color:var(--warn)} .hrbar[data-st="bad"] .hrtxt{color:var(--bad)}
+.free.hrbar{padding:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.sk-coach .hrbar{background:rgba(0,0,0,.14);border-radius:14px;padding:8px 12px}
+.sk-coach .hrtxt{color:#fff !important}
+.sk-coach .hz i{background:rgba(255,255,255,.22)} .sk-coach .hz i.tgt{box-shadow:inset 0 0 0 2px #fff} .sk-coach .hz i.lit{background:#fff}
+.zchip{font:600 .72rem var(--mono);border-radius:999px;padding:0 8px;color:#fff;background:var(--zc)}
+.zchip[data-z="1"]{--zc:var(--z1)} .zchip[data-z="2"]{--zc:var(--z2)} .zchip[data-z="3"]{--zc:var(--z3)} .zchip[data-z="4"]{--zc:var(--z4)} .zchip[data-z="5"]{--zc:var(--z5)}
+.zt{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px}
+.zleg{display:flex;gap:12px;flex-wrap:wrap;font:500 .75rem var(--mono);color:var(--muted)}
+.zleg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:baseline}
+
+/* summary */
+.sum-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.sum-stats b{font:700 1.5rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+.sum-stats small{font:500 .7rem var(--mono);color:var(--muted)}
+.pb{display:flex;align-items:center;gap:10px;font-weight:600}
+.pb span{font:700 .72rem var(--mono);background:var(--accent);color:#fff;border-radius:6px;padding:2px 7px;letter-spacing:.06em}
+
+/* history page */
+.hist-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ht{padding:10px 12px}
+.ht b{font:700 1.6rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+@media (max-width:560px){.hist-stats{grid-template-columns:repeat(2,1fr)}}
+.hchart svg{width:100%;height:auto;display:block}
+.hb{fill:color-mix(in srgb,var(--accent) 40%,var(--line))} .hb.now{fill:var(--accent)}
+.hv{font:600 12px var(--mono);fill:var(--ink)} .hl{font:500 11px var(--mono);fill:var(--muted)}
+@media (max-width:560px){.hv{font-size:20px} .hl{font-size:18px} .tl{stroke-width:4} .td{r:6}}
+.hax,.tg{stroke:var(--line)} .tl{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round}
+.td{fill:var(--panel);stroke:var(--accent);stroke-width:2} .td.last{fill:var(--accent)}
+.pbbox{padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.pbrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
+.pbrow b{font:700 1.3rem var(--display);font-variant-numeric:tabular-nums}
+.pbrow small{font:500 .72rem var(--mono);color:var(--muted)}
+.hlist{display:flex;flex-direction:column;gap:8px}
+.sess{padding:10px 14px}
+.sess summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:4px}
+.sess summary::-webkit-details-marker{display:none}
+.s-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.s-top span{font:500 .78rem var(--mono);color:var(--muted)}
+.s-top small{font-weight:400;color:var(--muted)}
+.s-nums{display:flex;gap:14px;flex-wrap:wrap;font:600 .95rem var(--body);font-variant-numeric:tabular-nums}
+.s-body{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.s-body .row{justify-content:space-between}
+.del[data-armed]{border-color:var(--bad);color:var(--bad)}
+
+/* connection diagnostics */
+.diag{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+.diag[open]{gap:12px}
+.diag summary{cursor:pointer;font-weight:600}
+.diag-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-block:10px}
+.diag-grid b{font:700 1.5rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+.diag code{display:block;font:500 .78rem var(--mono);color:var(--muted);overflow-wrap:anywhere;margin-top:4px}
+.diag .row{margin-bottom:10px}
+@media (max-width:560px){.diag-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* pause / ready overlay */
+.pz{position:fixed;inset:0;z-index:40;display:none;place-items:center;padding:16px;background:rgba(3,14,20,.6);backdrop-filter:blur(6px)}
+body[data-mode="workout"][data-paused] .pz{display:grid}
+.pz-card{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:24px;width:min(100%,380px);
+  display:flex;flex-direction:column;gap:12px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.pz-card h2{font-size:1.8rem}
+.pz-info{margin:0;color:var(--muted);font-size:.92rem;text-wrap:balance}
+.pz-go{font-size:1.35rem;padding:18px;border-radius:14px}
+.pz-count{font:700 6.5rem/1 var(--display);color:var(--accent);font-variant-numeric:tabular-nums}
+.pz-row{display:flex;gap:8px} .pz-row button{flex:1}
+.pz-awake{margin:0;font:500 .75rem var(--mono);color:var(--muted)}
+.pz-awake[data-ok="true"]{color:var(--ok)}
+.pz-hint{margin:0;font-size:.78rem;color:var(--muted)}
+@media (pointer:coarse){.pz-hint{display:none}}
+
+/* shared control cluster on every workout screen */
+.ctl{display:flex;gap:6px;flex-wrap:nowrap}
+:is(.r-top,.c-top,.g-top,.ftop){flex-wrap:wrap} :is(.r-top,.c-top,.g-top,.ftop) > .ctl{margin-left:auto}
+.ctl button{padding:6px 10px;font-size:.8rem;font-weight:600;white-space:nowrap}
+.skin.fixed{position:fixed;inset:0;z-index:20;overflow:hidden;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(14px + env(safe-area-inset-bottom,0px))}
+
+/* ---- Regatta: immersive race on open water (single dark look by choice) ---- */
+.sk-race{background:#061c29;color:#eef6f8;font-family:var(--body)}
+.sk-race canvas{position:absolute;inset:0;width:100%;height:100%}
+.sk-race .ctl button{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22);color:#fff;backdrop-filter:blur(8px)}
+.r-top{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.r-step{font:500 .72rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:#8fd3e0}
+.r-now{font:700 clamp(1.3rem,5vw,1.9rem)/1.05 var(--display);text-transform:uppercase;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.r-center{position:absolute;left:0;right:0;top:calc(17% + env(safe-area-inset-top,0px));text-align:center;pointer-events:none}
+.r-left{font:700 clamp(4.2rem,22vw,8.5rem)/.85 var(--display);font-variant-numeric:tabular-nums;text-shadow:0 4px 24px rgba(0,0,0,.45)}
+.r-leftlbl{font:500 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#bfe3ea}
+.r-gap{display:inline-block;margin-top:10px;padding:5px 14px;border-radius:999px;font:700 1.15rem var(--display);letter-spacing:.04em;
+  background:rgba(6,28,41,.55);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(8px)}
+.r-gap[data-st="ok"]{color:#5ff0b0;border-color:rgba(95,240,176,.5)}
+.r-gap[data-st="bad"]{color:#ff8a7a;border-color:rgba(255,138,122,.5)}
+.r-hud{position:absolute;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.r-stat{background:rgba(6,28,41,.58);border:1.5px solid rgba(255,255,255,.16);border-radius:14px;padding:8px 10px;backdrop-filter:blur(10px);min-width:0;display:flex;flex-direction:column}
+.r-stat span{font:500 .66rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#9cc7d2}
+.r-stat b{font:700 clamp(1.7rem,7vw,2.5rem)/1 var(--display);font-variant-numeric:tabular-nums}
+.r-stat i{font:500 .72rem var(--mono);font-style:normal;color:#bfe3ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r-stat[data-st="ok"]{border-color:#3fe0a0} .r-stat[data-st="ok"] b{color:#5ff0b0}
+.r-stat[data-st="warn"]{border-color:#ffc04d} .r-stat[data-st="warn"] b{color:#ffd27a}
+.r-stat[data-st="bad"]{border-color:#ff6b5b} .r-stat[data-st="bad"] b{color:#ff8a7a}
+.r-stat.change{border-color:#ff8a4c;animation:rpulse 1s ease-in-out 4} .r-stat.change i{color:#ffb08a;font-weight:600}
+@keyframes rpulse{50%{background:rgba(255,138,76,.35)}}
+.r-next{grid-column:1/-1;font:600 .85rem var(--body);color:#d6eef3;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+@media (max-width:520px){.r-hud{grid-template-columns:repeat(2,1fr)}}
+
+/* ---- Coach: colour-blocked interval timer ---- */
+.sk-coach{--cbg:#e2552b;background:var(--cbg);color:#fff;font-family:"Outfit",var(--body);transition:background-color .6s;
+  display:flex;flex-direction:column;gap:14px}
+body[data-phase="rest"] .sk-coach{--cbg:#17927f}
+body[data-phase="easy"] .sk-coach{--cbg:#4658c9}
+.sk-coach .ctl button{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);color:#fff}
+.c-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.c-name{font-weight:800;font-size:1.25rem;line-height:1.1}
+.c-step{font-size:.85rem;opacity:.85}
+.c-dots{display:flex;gap:3px;height:6px}
+.c-dots span{flex:1;border-radius:3px;background:rgba(255,255,255,.28)}
+.c-dots span.done{background:rgba(255,255,255,.75)} .c-dots span.cur{background:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.c-ring{position:relative;width:min(74vw,36vh,340px);aspect-ratio:1;max-width:100%;margin:auto auto 0}
+.c-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.c-ring circle{fill:none;stroke-width:12}
+.c-track{stroke:rgba(255,255,255,.22)}
+.c-prog{stroke:#fff;stroke-linecap:round;stroke-dasharray:552.9;transition:stroke-dashoffset .25s linear}
+.c-in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16%}
+.c-phase{font-weight:600;font-size:.85rem;letter-spacing:.16em;text-transform:uppercase;opacity:.9}
+.c-left{font-weight:800;font-size:clamp(3.4rem,17vw,5.6rem);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.c-now{font-weight:600;font-size:1rem;opacity:.95;text-wrap:balance}
+.c-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:auto}
+.c-stat{background:rgba(0,0,0,.14);border-radius:18px;padding:10px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.c-stat small{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+.c-stat b{font-weight:800;font-size:clamp(1.8rem,8vw,2.5rem);line-height:1;font-variant-numeric:tabular-nums}
+.c-stat em{font-style:normal;font-size:.75rem;font-weight:600;padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.2);white-space:nowrap}
+.c-stat[data-st="ok"] em{background:#fff;color:var(--cbg)}
+.c-stat[data-st="warn"] em{background:#ffd166;color:#3d2c00}
+.c-stat[data-st="bad"] em{background:#1c1412;color:#fff}
+.c-stat.change{animation:cpulse 1s ease-in-out 4} .c-stat.change em{background:#fff;color:var(--cbg)}
+@keyframes cpulse{50%{background:rgba(255,255,255,.35)}}
+.c-next{display:flex;flex-direction:column;gap:6px}
+.c-nextlbl{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;opacity:.8}
+.c-list{display:flex;flex-direction:column;gap:6px}
+.c-item{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.12);border-radius:12px;padding:8px 12px;font-size:.92rem}
+.c-item b{flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-item span{font-size:.78rem;opacity:.85;white-space:nowrap}
+.c-item i{font-style:normal;font-size:.72rem;font-weight:600;border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.c-item.rest{background:rgba(0,0,0,.1)}
+@media (min-width:761px){.sk-coach > *{width:100%;max-width:560px;margin-inline:auto}}
+@media (max-height:860px){.c-item:nth-child(n+3){display:none}}
+
+/* ---- Gauge: minimal dials ---- */
+.sk-gauge{background:var(--bg);color:var(--ink);display:flex;flex-direction:column;gap:10px}
+.sk-gauge > *{width:100%;max-width:560px;margin-inline:auto}
+.g-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.g-name{font:700 1.15rem/1.1 var(--display);text-transform:uppercase;letter-spacing:.03em}
+.g-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.g-phase{font:500 .72rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+body[data-phase="rest"] .g-phase{color:var(--muted)}
+.g-now{font:700 clamp(1.2rem,5vw,1.6rem)/1.1 var(--display);text-transform:uppercase}
+.g-left{text-align:right;font:700 clamp(2.4rem,11vw,3.4rem)/.9 var(--display);font-variant-numeric:tabular-nums}
+.g-left small{display:block;font:500 .66rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.g-main svg{width:100%;max-height:40vh;display:block}
+.g-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g-row svg{width:100%;max-height:22vh;display:block}
+.g-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.g-next{font-size:.9rem;font-weight:600}
+.g-track{fill:none;stroke:var(--line);stroke-linecap:round}
+.g-fill{fill:none;stroke:var(--muted);stroke-linecap:round;transition:d .25s}
+.g-fill[data-st="ok"]{stroke:var(--ok)} .g-fill[data-st="warn"]{stroke:var(--warn)} .g-fill[data-st="bad"]{stroke:var(--bad)}
+.g-band{fill:none;stroke:var(--ok);stroke-linecap:round}
+.g-tick{stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}
+.g-dot{fill:var(--bg);stroke:var(--ink);stroke-width:3}
+.g-seg{fill:none;stroke:var(--line)} .g-seg.lit{stroke:var(--accent)} .g-seg.live{stroke:var(--ink)}
+.g-v{font:700 64px var(--display);fill:var(--ink);font-variant-numeric:tabular-nums}
+.g-v.sm{font-size:40px}
+.g-l{font:500 10px var(--mono);fill:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.g-m{font:600 13px var(--body);fill:var(--muted)}
+.g-m[data-st="ok"]{fill:var(--ok)} .g-m[data-st="warn"]{fill:var(--warn)} .g-m[data-st="bad"]{fill:var(--bad)} .g-m.change{fill:var(--accent)}
+
+@media (max-height:520px) and (orientation:landscape){
+  .c-ring{width:min(36vh,260px)} .c-next{display:none} .r-center{top:10%}
+  .g-main svg{max-height:34vh} .g-row svg{max-height:26vh}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body data-view="dash" data-page="home">
+<div class="wrap">
+  <header class="home"><h1>Merach Row Log</h1></header>
+  <section class="panel connect-card home">
+    <div class="status" id="status" data-s="demo"><span class="dot"></span><span id="statusText">Demo data — connect your rower</span></div>
+    <div class="row">
+      <button id="installBtn" hidden>Install app</button>
+      <button id="hrBtn">Heart rate strap</button>
+      <button class="primary" id="connect">Connect rower</button>
+    </div>
+    <button class="linkbtn" id="connectAll">Rower not in the list? Show all devices</button>
+  </section>
+  <section class="panel yourrow home">
+    <div class="yr-stats">
+      <div><div class="label">This week</div><b id="yrWeek">0 m</b></div>
+      <div><div class="label">Sessions</div><b id="yrCount">0</b></div>
+      <div><div class="label">Best 2000 m</div><b id="yrK2">–</b></div>
+    </div>
+    <button id="openHist">History</button>
+  </section>
+  <header class="hist freebar">
+    <button id="histBack">← Trainings</button>
+    <h1>History</h1>
+    <button id="histExport">Export</button>
+  </header>
+  <section class="hist hist-stats" id="hStats"></section>
+  <section class="hist panel chart hchart"><div class="label">Metres per week</div><svg id="hWeeks" viewBox="0 0 640 190" role="img" aria-label="Metres rowed per week"></svg></section>
+  <section class="hist panel chart hchart"><div class="label">Average split, last 20 sessions (faster is higher)</div><svg id="hTrend" viewBox="0 0 640 190" role="img" aria-label="Average split trend"></svg></section>
+  <section class="hist panel pbbox"><h2>Personal bests</h2><div id="hPbs"></div></section>
+  <section class="hist" style="display:flex;flex-direction:column;gap:10px"><h2>Sessions</h2><div class="hlist" id="hList"></div><p class="note">History is kept in this browser on this device.</p></section>
+  <header class="free freebar">
+    <button id="back">← Trainings</button>
+    <h1>Free row</h1>
+    <div class="row"><button id="reset">Reset</button><button id="csv">Export CSV</button><button class="primary" id="saveFree">Finish &amp; save</button></div>
+  </header>
+  <div class="err" id="err" hidden></div>
+
+  <!-- workout focus screen: the only thing visible while a workout runs -->
+  <section class="panel wfocus skin" id="wfocus" data-skin="classic" aria-live="polite">
+    <div class="ftop">
+      <div>
+        <div class="fname" id="fName">Workout</div>
+        <div class="label" id="fStep">Step 1 / 1</div>
+      </div>
+      <div class="ctl"></div>
+    </div>
+    <div class="fmid">
+    <div>
+      <div class="fphase" id="fPhase">Work</div>
+      <div class="fnow" id="fNow">—</div>
+    </div>
+    <div>
+      <div class="fleft" id="fLeft">0:00</div>
+      <div class="label" id="fLeftLabel">Left in step</div>
+    </div>
+    <div class="ftiles">
+      <div class="ft" id="ftSplit"><div class="label">Split</div><b id="fSplit">–:––</b><span id="fSplitT">target —</span></div>
+      <div class="ft" id="ftRate"><div class="label">Rate</div><b id="fRate">0</b><span id="fRateT">target —</span></div>
+      <div class="ft" id="ftRes"><div class="label">Resistance</div><b id="fRes">–</b><span id="fResT">set on rower</span></div>
+    </div>
+    <div class="hrbar" hidden></div>
+    </div>
+    <div class="timeline" id="timeline"></div>
+    <div class="fbottom">
+      <div class="fnext" id="wNext"></div>
+      <div class="ftot" id="fTot"></div>
+    </div>
+  </section>
+
+  <!-- Regatta -->
+  <section class="skin fixed sk-race" data-skin="race" aria-live="polite">
+    <canvas id="raceCv" aria-hidden="true"></canvas>
+    <div class="r-top">
+      <div><div class="r-step" data-f="step"></div><div class="r-now" data-f="now"></div></div>
+      <div class="ctl"></div>
+    </div>
+    <div class="r-center">
+      <div class="r-left" data-f="left"></div>
+      <div class="r-leftlbl" data-f="leftLabel"></div>
+      <div class="r-gap" id="rGap"></div>
+    </div>
+    <div class="r-hud">
+      <div class="r-next" data-f="next"></div>
+      <div class="r-stat" data-k="split"><span>Split</span><b data-f="split"></b><i data-f="splitT"></i></div>
+      <div class="r-stat" data-k="rate"><span>Rate</span><b data-f="rate"></b><i data-f="rateT"></i></div>
+      <div class="r-stat" data-k="res"><span>Resistance</span><b data-f="res"></b><i data-f="resT"></i></div>
+      <div class="r-stat" data-k="hr"><span data-f="t4l">Power</span><b data-f="t4"></b><i data-f="t4s"></i></div>
+    </div>
+  </section>
+
+  <!-- Coach -->
+  <section class="skin fixed sk-coach" data-skin="coach" aria-live="polite">
+    <div class="c-top">
+      <div><div class="c-name" data-f="name"></div><div class="c-step" data-f="stepTot"></div></div>
+      <div class="ctl"></div>
+    </div>
+    <div class="c-dots" id="cDots"></div>
+    <div class="c-ring">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><circle class="c-track" cx="100" cy="100" r="88"/><circle class="c-prog" id="cProg" cx="100" cy="100" r="88"/></svg>
+      <div class="c-in"><div class="c-phase" data-f="phaseLabel"></div><div class="c-left" data-f="left"></div><div class="c-now" data-f="now"></div></div>
+    </div>
+    <div class="c-stats">
+      <div class="c-stat" data-k="split"><small>Split</small><b data-f="split"></b><em data-f="splitMsg"></em></div>
+      <div class="c-stat" data-k="rate"><small>Rate</small><b data-f="rate"></b><em data-f="rateMsg"></em></div>
+      <div class="c-stat" data-k="res"><small>Resistance</small><b data-f="res"></b><em data-f="resT"></em></div>
+    </div>
+    <div class="hrbar" hidden></div>
+    <div class="c-next"><div class="c-nextlbl">Up next</div><div class="c-list" id="cList"></div></div>
+  </section>
+
+  <!-- Gauge -->
+  <section class="skin fixed sk-gauge" data-skin="gauge" aria-live="polite">
+    <div class="g-top">
+      <div><div class="g-name" data-f="name"></div><div class="label" data-f="step"></div></div>
+      <div class="ctl"></div>
+    </div>
+    <div class="g-head">
+      <div><div class="g-phase" data-f="phaseLabel"></div><div class="g-now" data-f="now"></div></div>
+      <div class="g-left"><span data-f="left"></span><small data-f="leftLabel"></small></div>
+    </div>
+    <div class="g-main"><svg id="gMain" viewBox="0 0 300 215" role="img" aria-label="Split gauge"></svg></div>
+    <div class="g-row">
+      <svg id="gRate" viewBox="0 0 160 112" role="img" aria-label="Stroke rate gauge"></svg>
+      <svg id="gRes" viewBox="0 0 160 112" role="img" aria-label="Resistance gauge"></svg>
+    </div>
+    <div class="hrbar" hidden></div>
+    <div class="g-foot"><div class="timeline" id="gTimeline"></div><div class="row" style="justify-content:space-between"><div class="g-next" data-f="next"></div><div class="ftot" data-f="total"></div></div></div>
+  </section>
+
+  <section class="home panel summary" id="summary" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 id="sumTitle">Workout complete</h2>
+      <div class="row"><button id="use2k" hidden>Set as my 2k split</button><button id="closeSum">Close</button></div>
+    </div>
+    <div class="sum-stats" id="sumStats"></div>
+    <div id="sumPbs"></div>
+    <div id="sumZones"></div>
+    <div class="tablewrap" id="sumTableWrap"><table><thead><tr><th>Step</th><th>Res</th><th>Distance</th><th>Time</th><th>Avg split</th><th>Avg rate</th><th>Avg W</th></tr></thead><tbody id="sumBody"></tbody></table></div>
+    <p class="note" id="sumNote"></p>
+  </section>
+
+  <section class="home trainings">
+    <h2>Choose a training</h2>
+    <div class="lib" id="lib"></div>
+  </section>
+
+  <details class="panel settings-box home">
+    <summary>Settings</summary>
+    <div class="set-row">
+      <label class="label" for="base2k">My 2k split</label>
+      <input id="base2k" value="2:05" inputmode="numeric" aria-describedby="baseNote">
+      <p class="note" id="baseNote">Target splits are set from this. Row the 2000 m Test and the result can update it.</p>
+    </div>
+    <div class="set-row">
+      <span class="label">Workout screen</span>
+      <div class="seg" role="group" aria-label="Workout screen" id="skinSeg">
+        <button data-pick="race">Regatta</button>
+        <button data-pick="coach">Coach</button>
+        <button data-pick="gauge">Gauge</button>
+        <button data-pick="classic">Classic</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <label class="label" for="maxHr">Max heart rate</label>
+      <input id="maxHr" inputmode="numeric" value="185">
+      <p class="note">Zones: Z1 under 60% · Z2 60–70% · Z3 70–80% · Z4 80–90% · Z5 90%+ of max. If you don't know yours, 220 minus your age is a rough start.</p>
+    </div>
+    <div class="set-row">
+      <label class="label" for="voiceOn"><input type="checkbox" id="voiceOn"> Voice coach</label>
+      <select id="voiceEvery" aria-label="Split call-outs">
+        <option value="250">Split every 250 m</option>
+        <option value="500">Split every 500 m</option>
+        <option value="1000">Split every 1000 m</option>
+        <option value="0">No split call-outs</option>
+      </select>
+      <button id="voiceTest">Test voice</button>
+    </div>
+    <details class="diag" id="diag">
+    <summary>Connection details</summary>
+    <div class="diag-grid">
+      <div><div class="label">Updates from rower</div><b id="dPkts">–</b></div>
+      <div><div class="label">Rate sent by rower</div><b id="dRaw">–</b></div>
+      <div><div class="label">Rate from stroke timing</div><b id="dCalc">–</b></div>
+      <div><div class="label">Stroke count</div><b id="dStrokes">–</b></div>
+    </div>
+    <div class="row">
+      <label class="label" for="rateSrc">Stroke rate shown</label>
+      <select id="rateSrc">
+        <option value="strokes">From stroke timing (faster)</option>
+        <option value="rower">As sent by the rower</option>
+      </select>
+    </div>
+    <div><div class="label">Last data packet</div><code id="dHex">–</code></div>
+  </details>
+    <p class="note">Bar height on each training shows resistance (1–15). During rests, keep the same resistance and paddle lightly. Rates are strokes per minute. Sources: British Rowing Go Row intermediate plan, Sunny Health &amp; Fitness pyramid, and classic indoor-rowing staples.</p>
+    <p class="note">Connects over Bluetooth FTMS. Works in Chrome or Edge on Android, Windows, macOS and ChromeOS; on iPhone use the Bluefy browser. Close the Merach app first — the rower accepts one connection at a time.</p>
+  </details>
+
+  <div class="seg free" role="group" aria-label="View">
+      <button data-view="dash" aria-pressed="true">Dashboard</button>
+      <button data-view="focus" aria-pressed="false">Big split</button>
+      <button data-view="boat" aria-pressed="false">Pace boat</button>
+  </div>
+  <section class="free panel hero" aria-label="Pace">
+    <div>
+      <div class="label">Split /500m</div>
+      <div class="split" id="split">–:––<small>/500m</small></div>
+    </div>
+    <div>
+      <div class="label">Elapsed</div>
+      <div class="timer" id="time">00:00</div>
+    </div>
+  </section>
+  <section class="free grid" aria-label="Metrics">
+    <div class="m"><div class="label">Distance</div><b id="dist">0<span>m</span></b></div>
+    <div class="m"><div class="label">Stroke rate</div><b id="spm">0<span>s/m</span></b></div>
+    <div class="m"><div class="label">Strokes</div><b id="strokes">0</b></div>
+    <div class="m"><div class="label">Power</div><b id="watts">0<span>W</span></b></div>
+    <div class="m"><div class="label">Calories</div><b id="kcal">0<span>kcal</span></b></div>
+    <div class="m"><div class="label">Heart rate</div><b id="hr">–<span>bpm</span></b></div>
+    <div class="m"><div class="label">Avg split</div><b id="avgSplit">–:––</b></div>
+    <div class="m"><div class="label">Avg power</div><b id="avgW">0<span>W</span></b></div>
+    <div class="m"><div class="label">Resistance</div><b id="res">–</b></div>
+  </section>
+  <div class="free hrbar" hidden></div>
+  <section class="free panel chart" id="boatPanel">
+    <div class="row" style="justify-content:space-between">
+      <div class="label">You vs target boat</div>
+      <div class="gap" id="gap">±0 m</div>
+    </div>
+    <canvas id="boat" aria-label="Pace boat"></canvas>
+    <p class="note" id="boatNote">The target boat rows at your 2k split + 18 s (steady pace).</p>
+  </section>
+  <section class="free panel chart">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <label class="label" for="metric">Chart</label>
+        <select id="metric">
+          <option value="watts">Power (W)</option>
+          <option value="split">Split /500m</option>
+          <option value="spm">Stroke rate</option>
+          <option value="hr">Heart rate</option>
+        </select>
+      </div>
+      <select id="win" aria-label="Time window">
+        <option value="120">Last 2 min</option>
+        <option value="600">Last 10 min</option>
+        <option value="0">Whole session</option>
+      </select>
+    </div>
+    <canvas id="trace" aria-label="Metric trace"></canvas>
+  </section>
+</div>
+
+<div class="pz" id="pz" role="dialog" aria-modal="true" aria-labelledby="pzTitle">
+  <div class="pz-card">
+    <div class="label" id="pzKicker">Ready</div>
+    <h2 id="pzTitle">Workout</h2>
+    <p class="pz-info" id="pzInfo"></p>
+    <div class="pz-count" id="pzCount" hidden>3</div>
+    <button class="primary pz-go" id="pzGo">Start</button>
+    <div class="pz-row"><button id="pzReset">Reset workout</button><button id="pzEnd">End</button></div>
+    <p class="pz-awake" id="pzAwake">Screen stays on during your workout</p>
+    <p class="pz-hint">Space bar starts and pauses</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const FTMS = 0x1826, ROWER_DATA = 0x2ad1, HR_SVC = 0x180d, HR_MEAS = 0x2a37;
+
+/* ---------- platform: runs in a browser (Web Bluetooth) or as the Android app (native plugins) ---------- */
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+const N = window.Native || {};
+const uuid = n => typeof n === 'number' ? `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb` : n;
+const isCancel = e => e?.name === 'NotFoundError' || /cancel/i.test(e?.message || '');
+// Opens a Bluetooth device and returns {name, gatt: {connected, disconnect()}, sub(service, characteristic, cb(DataView))}
+async function bleOpen({services, optionalServices = [], namePrefixes = [], all = false, onDisconnect}){
+  if (NATIVE && N.BleClient) {
+    const B = N.BleClient;
+    await B.initialize({androidNeverForLocation: true});
+    if (!(await B.isEnabled())) { try { await B.requestEnable(); } catch {} }
+    const d = await B.requestDevice(all ? {} : {services: services.map(uuid)});
+    const h = {name: d.name, gatt: {connected: false, disconnect: () => B.disconnect(d.deviceId).catch(() => {})}};
+    await B.connect(d.deviceId, () => { h.gatt.connected = false; onDisconnect?.(); });
+    h.gatt.connected = true;
+    h.sub = (svc, chr, cb) => B.startNotifications(d.deviceId, uuid(svc), uuid(chr), cb);
+    return h;
+  }
+  if (!navigator.bluetooth) throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge on desktop/Android, or Bluefy on iPhone.');
+  const dev = await navigator.bluetooth.requestDevice(all
+    ? {acceptAllDevices: true, optionalServices: [...services, ...optionalServices]}
+    : {filters: [...services.map(x => ({services: [x]})), ...namePrefixes.map(x => ({namePrefix: x}))], optionalServices: [...services, ...optionalServices]});
+  dev.addEventListener('gattserverdisconnected', () => onDisconnect?.());
+  const server = await dev.gatt.connect();
+  dev.sub = async (svc, chr, cb) => {
+    const ch = await (await server.getPrimaryService(svc)).getCharacteristic(chr);
+    ch.addEventListener('characteristicvaluechanged', e => cb(e.target.value));
+    await ch.startNotifications();
+  };
+  return dev;
+}
+// Saves a text file: a download in the browser, the Android share sheet in the app
+async function saveFile(name, text, mime){
+  if (NATIVE && N.Filesystem && N.Share) {
+    try {
+      const r = await N.Filesystem.writeFile({path: name, data: text, directory: 'CACHE', encoding: 'utf8'});
+      await N.Share.share({title: name, files: [r.uri]});
+    } catch (e) { if (!isCancel(e)) showErr('Couldn’t share the file: ' + (e.message || e)); }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: mime})); a.download = name; a.click();
+}
+const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+
+/* ---------- workouts ----------
+   off = seconds added to your 2k split for the target split
+   spm = [low, high] stroke rate
+   res = resistance level 1–15 (rests keep the previous level) */
+const W = (t, spm, off, res, label) => ({kind:'work', t, spm, off, res, label});
+const D = (d, spm, off, res, label) => ({kind:'work', d, spm, off, res, label});
+const R = (t, label) => ({kind:'rest', t, label});
+const warm = (t=300) => ({...W(t, [18,20], 22, 4, 'Warm-up'), easy:true});
+const cool = (t=180) => ({...W(t, [18,20], 25, 3, 'Cool-down'), easy:true});
+const rep = (n, f) => Array.from({length:n}, (_, i) => f(i)).flat();
+
+const WORKOUTS = [
+  {id:'ladder', name:'Rate Ladder 20–26', tag:'Technique', desc:'Step the rate up to 26 and back down at one resistance. Hold the split steady and let the rate do the work.',
+    segs:[W(180,[20,20],18,6),W(120,[22,22],14,6),W(60,[24,24],10,6),W(60,[26,26],6,6),W(60,[24,24],10,6),W(120,[22,22],14,6),W(180,[20,20],18,6)]},
+  {id:'climb', name:'Resistance Climb', tag:'Strength', desc:'Rate stays at 22 while resistance steps from 5 up to 11 and back. Keep the drive long and let the split follow the load.',
+    segs:[warm(240), ...[5,7,9,11,9,7,5].map((r,i) => W(180,[22,22],[18,16,13,10,13,16,18][i],r)), cool()]},
+  {id:'sixmin', name:'Six × 1 Minute', tag:'Intervals', desc:'Two sets of three hard minutes with a minute easy between each, three minutes between sets.',
+    segs:[warm(240), ...rep(3,i=>[W(60,[26,28],2,9), R(i<2?60:180)]), ...rep(3,i=>[W(60,[24,26],4,9), ...(i<2?[R(60)]:[])]), cool()]},
+  {id:'pyramid', name:'Pyramid 15–60 s', tag:'HIIT', desc:'Two short pyramids of 15-30-45-60-45-30-15 s at high rate with 15 s easy between, finishing on a full minute.',
+    segs:[warm(120), ...[15,30,45,60,45,30,15,15,30,45,60,45,30,15].flatMap((t,i)=>[W(t,[28,32],-2,7), R(i===6?30:15)]), W(60,[28,32],-2,7), cool(60)]},
+  {id:'2x1k', name:'2 × 1000 m', tag:'Threshold', desc:'Go out a touch conservative on the first 1000 m so you can match it on the second.',
+    segs:[warm(), D(1000,[24,26],4,8), R(150), D(1000,[24,26],4,8), cool()]},
+  {id:'4x1k', name:'4 × 1000 m', tag:'Threshold', desc:'A staple threshold session. Aim for all four within two seconds of each other.',
+    segs:[warm(), ...rep(4,i=>[D(1000,[24,26],5,8), ...(i<3?[R(180)]:[])]), cool()]},
+  {id:'8x500', name:'8 × 500 m', tag:'Speed', desc:'Fast 500s at just under 2k pace with two minutes easy between.',
+    segs:[warm(), ...rep(8,i=>[D(500,[28,30],-2,9), ...(i<7?[R(120)]:[])]), cool()]},
+  {id:'30r20', name:'30 min at 20', tag:'Endurance', desc:'Classic steady state with the rate capped at 20. Chase distance through power, not rate.',
+    segs:[W(1800,[20,20],14,7)]},
+  {id:'3x10', name:'3 × 10 min', tag:'Endurance', desc:'Three steady pieces building the rate: 20, then 22, then 24.',
+    segs:[W(600,[20,20],16,7), R(120), W(600,[22,22],12,7), R(120), W(600,[24,24],8,7)]},
+  {id:'2k', name:'2000 m Test', tag:'Test', desc:'The standard benchmark. Even splits from start to finish; the result can update your 2k split.',
+    segs:[warm(), D(2000,[28,32],0,8,'2000 m test'), cool()]},
+];
+// target heart-rate zones
+const WZ = {ladder: [2, 3], climb: [3, 3], sixmin: [4, 5], pyramid: [4, 5], '2x1k': [4, 4], '4x1k': [4, 4], '8x500': [4, 5], '30r20': [2, 2], '3x10': [2, 3], '2k': [5, 5]};
+for (const w of WORKOUTS) w.zone = WZ[w.id];
+// rests inherit the resistance of the step before them
+for (const w of WORKOUTS) { let last = 4; for (const s of w.segs) { if (s.kind === 'rest') s.res = last; else last = s.res; } }
+
+const parseSplit = s => { const m = String(s).trim().match(/^(\d+):(\d{1,2}(?:\.\d)?)$/); return m ? +m[1]*60 + +m[2] : null; };
+let base2k = parseSplit(store.get('base2k','2:05')) || 125;
+const tgtSplit = seg => seg.kind === 'work' ? base2k + seg.off : null;
+const segSecs = seg => seg.t ?? seg.d / 500 * (base2k + seg.off);
+const rateTxt = seg => seg.spm[0] === seg.spm[1] ? String(seg.spm[0]) : seg.spm.join('–');
+const segLabel = seg => {
+  if (seg.kind === 'rest') return seg.label || 'Easy ' + fmtTime(seg.t);
+  return (seg.label ? seg.label + ' · ' : '') + (seg.d ? seg.d + ' m' : fmtTime(seg.t)) + ' @ ' + rateTxt(seg);
+};
+// some FTMS rowers report resistance ×10
+const normRes = v => v == null ? null : (v > 16 && v <= 160 ? Math.round(v / 10) : v);
+
+function setPage(pg){
+  document.body.dataset.page = pg;
+  if (pg === 'free') { reset(); sessReset(); }
+  if (pg === 'history') renderHistory();
+  if (pg === 'home') renderHome();
+  window.scrollTo(0, 0); render();
+}
+function renderLib(){
+  $('lib').innerHTML = '';
+  const fr = document.createElement('article'); fr.className = 'panel card free-card';
+  fr.innerHTML = '<div class="meta"><span class="tag">Just row</span><span>No plan</span></div><h3>Free row</h3><p>Live split, power, pace boat and charts.</p><div class="spacer"></div><button>Open</button>';
+  fr.querySelector('button').onclick = () => setPage('free');
+  $('lib').append(fr);
+  for (const w of WORKOUTS) {
+    const total = w.segs.reduce((a,s) => a + segSecs(s), 0);
+    const main = w.segs.filter(s => s.kind === 'work' && !s.easy);
+    const rs = main.map(s => s.res), lo = Math.min(...rs), hi = Math.max(...rs);
+    const card = document.createElement('article'); card.className = 'panel card';
+    card.innerHTML = `<div class="meta"><span class="tag">${w.tag}</span><span>~${Math.round(total/60)} min</span><span>${main.length} ${main.length === 1 ? 'piece' : 'pieces'}</span><span class="res-pill">Res ${lo === hi ? lo : lo + '–' + hi}</span>${w.zone ? `<span class="zchip" data-z="${w.zone[0]}">HR ${zTxt(w.zone)}</span>` : ''}</div>
+      <h3>${w.name}</h3><p>${w.desc}</p><div class="mini" aria-hidden="true"></div><button>Start</button>`;
+    const mini = card.querySelector('.mini');
+    for (const s of w.segs) {
+      const sp = document.createElement('span'); sp.style.flex = segSecs(s); sp.style.height = (s.res / 15 * 100) + '%';
+      if (s.kind === 'rest') sp.className = 'rest'; else if (s.easy) sp.className = 'easy';
+      sp.title = segLabel(s) + ' · resistance ' + s.res; mini.append(sp);
+    }
+    card.querySelector('button').onclick = () => startWorkout(w);
+    $('lib').append(card);
+  }
+}
+
+/* ---------- live state ---------- */
+let state = blank(), samples = [], device = null, demoTimer = null, wk = null, lastResults = null;
+function blank(){ return {split:null, avgSplit:null, dist:0, spm:0, strokes:0, watts:0, avgW:0, wSum:0, wN:0, kcal:0, hr:null, res:null, time:0}; }
+let raw = {}, off = {};
+function zeroOffsets(){ raw = {}; off = {}; }
+
+function fmtSplit(s){ if (s == null || s <= 0 || s > 3599) return '–:––'; const r = Math.round(s); return `${Math.floor(r/60)}:${String(r%60).padStart(2,'0')}`; }
+function fmtTime(s){ s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return (h ? h + ':' + String(m).padStart(2,'0') : String(m)) + ':' + String(x).padStart(2,'0'); }
+
+function renderDiag(){
+  if (!$('diag').open) return;
+  const now = performance.now(), recent = pktLog.filter(t => now - t < 5000);
+  $('dPkts').textContent = device?.gatt?.connected ? (recent.length / 5).toFixed(1) + ' /s' : 'not connected';
+  $('dRaw').textContent = rawSpm != null ? rawSpm.toFixed(1) : '–';
+  const sr = strokeRate(); $('dCalc').textContent = sr != null ? sr.toFixed(1) : 'need 3 strokes';
+  $('dStrokes').textContent = state.strokes ?? '–';
+  $('dHex').textContent = lastHex;
+}
+function render(){
+  renderDiag();
+  $('split').firstChild.nodeValue = fmtSplit(state.split);
+  $('time').textContent = fmtTime(state.time);
+  $('dist').firstChild.nodeValue = Math.round(state.dist);
+  $('spm').firstChild.nodeValue = Math.round(state.spm);
+  $('strokes').textContent = state.strokes;
+  $('watts').firstChild.nodeValue = Math.round(state.watts);
+  $('avgW').firstChild.nodeValue = Math.round(state.avgW);
+  $('kcal').firstChild.nodeValue = Math.round(state.kcal);
+  $('hr').firstChild.nodeValue = state.hr ?? '–';
+  $('avgSplit').textContent = fmtSplit(state.avgSplit);
+  $('res').textContent = normRes(state.res) ?? '–';
+  $('hr').style.color = state.hr ? `var(--z${zoneOf(state.hr)})` : '';
+  if (wk) tickWorkout(); else { drawTrace(); drawBoat(); updHrBars(document.querySelector('.wrap'), null); }
+}
+
+/* FTMS Rower Data (0x2AD1). Bit 0 is inverted: 0 means stroke rate + count ARE present. */
+function parseRower(dv){
+  let o = 0; const f = dv.getUint16(o, true); o += 2; const d = {};
+  if (!(f & 1)) { d.spm = dv.getUint8(o) / 2; o += 1; d.strokes = dv.getUint16(o, true); o += 2; }
+  if (f & 1<<1) o += 1;
+  if (f & 1<<2) { d.dist = dv.getUint16(o, true) | dv.getUint8(o+2) << 16; o += 3; }
+  if (f & 1<<3) { d.split = dv.getUint16(o, true); o += 2; }
+  if (f & 1<<4) { d.avgSplit = dv.getUint16(o, true); o += 2; }
+  if (f & 1<<5) { d.watts = dv.getInt16(o, true); o += 2; }
+  if (f & 1<<6) { d.avgW = dv.getInt16(o, true); o += 2; }
+  if (f & 1<<7) { d.res = dv.getInt16(o, true); o += 2; }
+  if (f & 1<<8) { d.kcal = dv.getUint16(o, true); o += 5; }
+  if (f & 1<<9) { const h = dv.getUint8(o); if (h) d.hr = h; o += 1; }
+  if (f & 1<<10) o += 1;
+  if (f & 1<<11) { d.time = dv.getUint16(o, true); o += 2; }
+  return d;
+}
+
+let lastPush = 0, localStart = null;
+
+/* Stroke rate from stroke timing. Many rowers send a slow, averaged rate; the stroke counter
+   ticks on every stroke, so timing the last few strokes tracks rate changes within 1–2 strokes. */
+let rateSrc = store.get('rateSrc', 'strokes');
+const strokeLog = [];                  // {t, n} each time the stroke count changes
+const pktLog = [];                     // arrival times of rower packets, for the updates/sec readout
+let lastHex = '–', rawSpm = null;
+function logStroke(n){
+  const t = performance.now(), last = strokeLog[strokeLog.length - 1];
+  if (last && n < last.n) strokeLog.length = 0;                 // counter reset
+  if (!last || n !== last.n) { strokeLog.push({t, n}); }
+  while (strokeLog.length > 2 && (strokeLog.length > 4 || t - strokeLog[0].t > 10000)) strokeLog.shift();
+}
+function strokeRate(){
+  if (strokeLog.length < 3) return null;                      // need 2+ full intervals
+  const a = strokeLog[0], b = strokeLog[strokeLog.length - 1], now = performance.now();
+  let r = 60000 * (b.n - a.n) / (b.t - a.t);
+  const gap = (b.t - a.t) / (b.n - a.n), since = now - b.t;
+  if (since > gap * 1.25) r = Math.min(r, 60000 / since);      // slowing down: let it fall without waiting for the next stroke
+  if (since > 7000) r = 0;                                      // stopped
+  return Math.max(0, Math.min(60, r));
+}
+function applyRate(){
+  const r = rateSrc === 'strokes' ? strokeRate() : null;
+  state.spm = r ?? rawSpm ?? state.spm;
+}
+function ingest(d){
+  for (const k of ['dist', 'time', 'strokes', 'kcal']) if (d[k] != null) { raw[k] = d[k]; d[k] = Math.max(0, d[k] - (off[k] || 0)); }
+  delete d.avgSplit; delete d.avgW;
+  if (strapLive()) delete d.hr;
+  if (d.spm != null) rawSpm = d.spm;
+  if (d.strokes != null) logStroke(d.strokes);
+  Object.assign(state, d);
+  applyRate();
+  if (d.time == null) { localStart ??= Date.now(); state.time = (Date.now() - localStart) / 1000; }
+  if (state.dist > 0) state.avgSplit = state.time / state.dist * 500;
+  if (d.watts != null && state.spm > 0) { state.wSum += d.watts; state.wN++; state.avgW = state.wSum / state.wN; }
+  if (wk && !wk.paused) { const seg = wk.def.segs[wk.i]; if (seg.kind === 'work' && state.spm > 0) { wk.acc.spm += state.spm; wk.acc.w += state.watts; wk.acc.n++; } }
+  const now = Date.now();
+  if (now - lastPush > 900) {
+    const seg = wk?.def.segs[wk.i];
+    samples.push({t: state.time, dist: state.dist, split: state.split, spm: state.spm, strokes: state.strokes, watts: state.watts, kcal: state.kcal, hr: state.hr,
+      res: normRes(state.res), rest: seg?.kind === 'rest', target: seg ? tgtSplit(seg) : null, targetRes: seg?.res ?? null});
+    lastPush = now;
+  }
+  render();
+}
+
+/* ---------- fullscreen + wake lock ---------- */
+const isPhone = () => matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+let nativeFs = false;
+const fsEl = () => NATIVE ? nativeFs : document.fullscreenElement || document.webkitFullscreenElement;
+const fsOK = () => NATIVE ? !!N.StatusBar : !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+async function enterFs(){
+  if (NATIVE) { try { await N.StatusBar?.hide(); nativeFs = true; } catch {} syncFsBtn(); return; }
+  const el = document.documentElement;
+  try { await (el.requestFullscreen ? el.requestFullscreen({navigationUI: 'hide'}) : el.webkitRequestFullscreen?.()); } catch {}
+  try { await screen.orientation?.lock?.('portrait'); } catch {}
+}
+function exitFs(){ if (NATIVE) { N.StatusBar?.show().catch(() => {}); nativeFs = false; syncFsBtn(); return; } try { if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document)?.catch?.(() => {}); } catch {} }
+function syncFsBtn(){ document.querySelectorAll('[data-act="fs"]').forEach(b => { b.hidden = !fsOK(); b.textContent = fsEl() ? 'Exit full' : 'Full'; }); }
+document.addEventListener('fullscreenchange', syncFsBtn);
+document.addEventListener('webkitfullscreenchange', syncFsBtn);
+/* Keep the screen on: Wake Lock where the browser has it (re-taken whenever the browser drops it),
+   otherwise a tiny silent looping video, which also stops phones from dimming. */
+const awake = {lock: null, video: null, ok: false};
+async function keepAwake(){
+  if (NATIVE && N.KeepAwake) { try { await N.KeepAwake.keepAwake(); return setAwake(true); } catch {} }
+  if (document.visibilityState !== 'visible') return;
+  if ('wakeLock' in navigator) {
+    try {
+      if (!awake.lock || awake.lock.released) {
+        awake.lock = await navigator.wakeLock.request('screen');
+        awake.lock.addEventListener('release', () => { setAwake(false); if (document.visibilityState === 'visible') setTimeout(keepAwake, 1000); });
+      }
+      return setAwake(true);
+    } catch {}
+  }
+  try {
+    if (!awake.video) {
+      const c = document.createElement('canvas'); c.width = c.height = 2; const g = c.getContext('2d');
+      let f = 0; setInterval(() => { g.fillStyle = (f++ % 2) ? '#000' : '#010101'; g.fillRect(0, 0, 2, 2); }, 1000);
+      const v = document.createElement('video');
+      v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
+      v.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none';
+      v.srcObject = c.captureStream(1); document.body.append(v); awake.video = v;
+    }
+    await awake.video.play(); setAwake(true);
+  } catch { setAwake(false); }
+}
+function setAwake(ok){
+  awake.ok = ok;
+  const el = $('pzAwake'); if (!el) return;
+  el.textContent = ok ? 'Screen stays on during your workout' : 'Screen keep-awake isn’t available here — turn off auto-lock in your phone settings';
+  el.dataset.ok = ok;
+}
+// browsers only allow it after a tap, so take it on the first interaction too
+document.addEventListener('pointerdown', keepAwake, {once: true});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+
+/* ---------- workout engine ---------- */
+let audio = null;
+function beep(n = 1){
+  try { audio ??= new AudioContext(); for (let i = 0; i < n; i++) { const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(audio.destination); const t = audio.currentTime + i*0.22;
+    g.gain.setValueAtTime(0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18); o.start(t); o.stop(t + 0.2); } } catch {}
+}
+function startWorkout(def){
+  beep(0);
+  if (isPhone()) enterFs();
+  keepAwake();
+  $('summary').hidden = true;
+  const now = Date.now();
+  wk = {def, i: 0, results: [], t0: now, dist0: state.dist, resChangeAt: 0, tick: setInterval(tickWorkout, 250),
+        paused: true, started: false, pausedAt: now, pausedDist: state.dist, kcal0: state.kcal};
+  sessReset();
+  beginSeg();
+  const tl = def.segs.map(s => `<span class="${s.kind}" style="flex:${segSecs(s)}"><i style="width:0"></i></span>`).join('');
+  $('timeline').innerHTML = tl; $('gTimeline').innerHTML = tl;
+  $('cDots').innerHTML = def.segs.map(() => '<span></span>').join('');
+  wk.drawnI = -1;
+  $('fName').textContent = def.name;
+  document.body.dataset.mode = 'workout';
+  applySkin();
+  syncFsBtn();
+  window.scrollTo(0, 0);
+  showPause();
+  tickWorkout();
+}
+const wkNow = () => wk.paused ? wk.pausedAt : Date.now();
+const wkDist = () => wk.paused ? wk.pausedDist : state.dist;
+
+/* ---------- start / pause / reset ---------- */
+let countTimer = null;
+function showPause(){
+  document.body.dataset.paused = '';
+  const seg = wk.def.segs[wk.i];
+  $('pzKicker').textContent = wk.started ? 'Paused' : 'Ready';
+  $('pzTitle').textContent = wk.def.name;
+  $('pzInfo').textContent = `Step ${wk.i + 1} of ${wk.def.segs.length} · ${segLabel(seg)} · resistance ${seg.res}`;
+  $('pzGo').textContent = wk.started ? 'Resume' : 'Start';
+  $('pzGo').hidden = false; $('pzCount').hidden = true;
+  $('pzReset').hidden = !wk.started;
+  setTimeout(() => $('pzGo').focus(), 50);
+}
+function pauseW(){
+  if (!wk || wk.paused) return;
+  wk.paused = true; wk.pausedAt = Date.now(); wk.pausedDist = state.dist;
+  beep(1); speak('Paused.', true); showPause(); tickWorkout();
+}
+function resumeW(){
+  if (!wk || !wk.paused || countTimer) return;
+  keepAwake(); primeVoice();
+  let n = 3; $('pzGo').hidden = true; $('pzCount').hidden = false; $('pzCount').textContent = n; beep(1);
+  countTimer = setInterval(() => {
+    n--;
+    if (n > 0) { $('pzCount').textContent = n; beep(1); return; }
+    clearInterval(countTimer); countTimer = null;
+    const dt = Date.now() - wk.pausedAt, dd = state.dist - wk.pausedDist;
+    wk.start += dt; wk.t0 += dt; if (wk.resChangeAt) wk.resChangeAt += dt;
+    wk.d0 += dd; wk.dist0 += dd;
+    const first = !wk.started;
+    wk.paused = false; wk.started = true;
+    delete document.body.dataset.paused; beep(2);
+    if (first) announceStep(true); else speak('Go!', true);
+    tickWorkout();
+  }, 1000);
+}
+function cancelCount(){ if (countTimer) { clearInterval(countTimer); countTimer = null; } }
+function resetW(){
+  if (!wk) return;
+  cancelCount();
+  const now = Date.now();
+  Object.assign(wk, {i: 0, results: [], paused: true, started: false, pausedAt: now, pausedDist: state.dist, t0: now, dist0: state.dist, drawnI: -1, kcal0: state.kcal, nudgeAt: 0, hrNudgeAt: 0});
+  sessReset();
+  beginSeg(); rc.d = 0;
+  showPause(); tickWorkout();
+}
+function beginSeg(){
+  wk.start = wkNow(); wk.d0 = wkDist(); wk.acc = {spm: 0, w: 0, n: 0}; wk.v = {mark: 0};
+  const prev = wk.def.segs[wk.i - 1], cur = wk.def.segs[wk.i];
+  wk.resChangeAt = (wk.i === 0 || (prev && prev.res !== cur.res)) ? wkNow() : 0;
+}
+function endSeg(){
+  const seg = wk.def.segs[wk.i], secs = (wkNow() - wk.start) / 1000, dist = wkDist() - wk.d0;
+  wk.results.push({seg, secs, dist, split: dist > 5 ? secs / dist * 500 : null,
+    spm: wk.acc.n ? wk.acc.spm / wk.acc.n : null, w: wk.acc.n ? wk.acc.w / wk.acc.n : null});
+}
+function nextSeg(){
+  endSeg(); wk.i++;
+  if (wk.i >= wk.def.segs.length) return finishWorkout();
+  beep(wk.def.segs[wk.i].kind === 'work' ? 2 : 1); beginSeg(); announceStep(false);
+}
+function setTile(id, st){ $(id).dataset.st = st || ''; }
+
+/* ---------- workout screens ---------- */
+const SKINS = ['race', 'coach', 'gauge', 'classic'];
+let skin = SKINS.includes(store.get('skin', 'race')) ? store.get('skin', 'race') : 'race';
+const skinEl = () => document.querySelector(`.skin[data-skin="${skin}"]`);
+function setSkin(k){ skin = k; store.set('skin', k); syncSkinSeg(); if (wk) { applySkin(); tickWorkout(); } }
+function syncSkinSeg(){ document.querySelectorAll('#skinSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.pick === skin)); }
+function applySkin(){
+  document.querySelectorAll('.skin').forEach(el => el.classList.toggle('on', el.dataset.skin === skin));
+  if (skin === 'race' && wk && !raceRAF) { rc.last = 0; raceRAF = requestAnimationFrame(raceLoop); }
+}
+
+// Everything a workout screen can show, computed once per tick
+function model(){
+  const segs = wk.def.segs, seg = segs[wk.i], el = (wkNow() - wk.start) / 1000, dd = wkDist() - wk.d0;
+  const rest = seg.kind === 'rest', tg = tgtSplit(seg), s = state.split, r = state.spm, live = normRes(state.res);
+  const changing = !!(wk.resChangeAt && wkNow() - wk.resChangeAt < 8000);
+  let splitSt = '', splitMsg = rest ? 'easy' : 'start rowing';
+  if (!rest && s) { const d = s - tg; splitSt = d > 4 ? 'bad' : d > 2 ? 'warn' : d < -4 ? 'warn' : 'ok';
+    splitMsg = Math.abs(d) <= 2 ? 'on pace' : Math.round(Math.abs(d)) + ' s ' + (d > 0 ? 'slow' : 'fast'); }
+  let rateSt = '', rateMsg = rest ? 'easy' : 'target ' + rateTxt(seg);
+  if (!rest && r) { const [lo, hi] = seg.spm;
+    rateSt = (r < lo - 2 || r > hi + 2) ? 'bad' : (r < lo - 1 || r > hi + 1) ? 'warn' : 'ok';
+    rateMsg = r < lo - 1 ? 'go up · ' + rateTxt(seg) : r > hi + 1 ? 'ease · ' + rateTxt(seg) : 'on rate'; }
+  const resT = changing ? (wk.i === 0 ? 'set rower to ' + seg.res : 'change to ' + seg.res)
+    : rest ? 'keep at ' + seg.res : live != null ? 'rower: ' + live : 'set on rower';
+  const resSt = changing || live == null ? '' : live === seg.res ? 'ok' : Math.abs(live - seg.res) <= 1 ? 'warn' : 'bad';
+  const tz = rest || seg.easy ? null : wk.def.zone, hz = zoneOf(state.hr);
+  const nx = segs[wk.i + 1];
+  return {
+    hrSt: zoneState(state.hr, tz),
+    t4l: state.hr ? 'Heart rate' : 'Power',
+    t4: state.hr ?? Math.round(state.watts),
+    t4s: state.hr ? `Zone ${hz}${tz ? ' · target ' + zTxt(tz) : ''}` : fmtTime((wkNow() - wk.t0) / 1000) + ' · ' + Math.round(wkDist() - wk.dist0) + ' m',
+    seg, rest, el, dd, tg, live, changing,
+    name: wk.def.name, step: `Step ${wk.i + 1} / ${segs.length}`,
+    stepTot: `Step ${wk.i + 1} of ${segs.length} · ${fmtTime((wkNow() - wk.t0) / 1000)}`,
+    phase: rest ? 'rest' : seg.easy ? 'easy' : 'work',
+    phaseLabel: rest ? 'Rest · paddle light' : seg.easy ? seg.label : 'Work',
+    now: rest ? 'Easy paddle' : (seg.d ? seg.d + ' m' : fmtTime(seg.t)) + ' @ ' + rateTxt(seg),
+    left: seg.t ? fmtTime(seg.t - el) : Math.max(0, Math.ceil(seg.d - dd)) + 'm',
+    leftLabel: seg.t ? 'left in step' : 'to go',
+    frac: Math.min(1, seg.t ? el / seg.t : dd / seg.d),
+    split: fmtSplit(s), splitV: s, splitT: rest ? 'easy' : 'target ' + fmtSplit(tg), splitSt, splitMsg,
+    rate: r ? Math.round(r) : 0, rateV: r, rateT: rest ? 'easy' : 'target ' + rateTxt(seg), rateSt, rateMsg,
+    res: seg.res, resT, resSt,
+    watts: Math.round(state.watts),
+    next: nx ? 'Next: ' + segLabel(nx) + (nx.res !== seg.res ? ' · res ' + nx.res : '') : 'Last step',
+    total: fmtTime((wkNow() - wk.t0) / 1000) + ' · ' + Math.round(wkDist() - wk.dist0) + ' m',
+  };
+}
+
+function tickWorkout(){
+  if (!wk) return;
+  const seg0 = wk.def.segs[wk.i], el0 = (wkNow() - wk.start) / 1000, dd0 = wkDist() - wk.d0;
+  if (!wk.paused && ((seg0.t && el0 >= seg0.t) || (seg0.d && dd0 >= seg0.d))) { nextSeg(); if (!wk) return; return tickWorkout(); }
+  const m = model();
+  document.body.dataset.phase = m.phase;
+
+  // step-change housekeeping
+  if (wk.drawnI !== wk.i) {
+    wk.drawnI = wk.i; rc.d = m.dd;
+    [...$('cDots').children].forEach((d, k) => d.className = k < wk.i ? 'done' : k === wk.i ? 'cur' : '');
+    $('cList').innerHTML = wk.def.segs.slice(wk.i + 1, wk.i + 4).map(s =>
+      `<div class="c-item ${s.kind}"><b>${s.kind === 'rest' ? 'Easy paddle' : (s.label ? s.label + ' · ' : '') + (s.d ? s.d + ' m' : fmtTime(s.t)) + ' @ ' + rateTxt(s)}</b>` +
+      `<span>${s.kind === 'rest' ? fmtTime(s.t) : ''}</span><i>Res ${s.res}</i></div>`).join('') || '<div class="c-item"><b>Finish</b></div>';
+  }
+
+  // shared fields on the active screen
+  const root = skinEl();
+  if (root && skin !== 'classic') {
+    root.querySelectorAll('[data-f]').forEach(n => { const v = m[n.dataset.f]; if (v != null && n.textContent !== String(v)) n.textContent = v; });
+    root.querySelectorAll('[data-k]').forEach(n => { n.dataset.st = m[n.dataset.k + 'St'] || ''; });
+    root.querySelector('[data-k="res"]')?.classList.toggle('change', m.changing);
+  }
+
+  // classic
+  if (skin === 'classic') {
+    $('fStep').textContent = m.step;
+    $('fPhase').textContent = m.phaseLabel;
+    $('fNow').textContent = m.rest ? 'Easy ' + (m.seg.t ? fmtTime(m.seg.t) : '') : m.now;
+    $('fLeft').textContent = m.left;
+    $('fLeftLabel').textContent = m.seg.t ? 'Left in step' : 'Metres to go';
+    $('fSplit').textContent = m.split; $('fSplitT').textContent = m.splitT; setTile('ftSplit', m.splitSt);
+    $('fRate').textContent = m.rate; $('fRateT').textContent = m.rateT; setTile('ftRate', m.rateSt);
+    $('fRes').textContent = m.res; $('fResT').textContent = m.resT; setTile('ftRes', m.resSt);
+    $('ftRes').classList.toggle('change', m.changing);
+    $('wNext').textContent = m.next; $('fTot').textContent = m.total;
+  }
+  if (skin === 'coach') $('cProg').style.strokeDashoffset = (552.9 * m.frac).toFixed(1);
+  if (skin === 'gauge') drawGauges(m);
+
+  for (const id of ['timeline', 'gTimeline']) {
+    const bars = $(id).children;
+    for (let k = 0; k < bars.length; k++) bars[k].firstChild.style.width = (k < wk.i ? 100 : k > wk.i ? 0 : m.frac * 100) + '%';
+  }
+  wk.m = m;
+  updHrBars(root, tz0(m));
+  voiceTick(m);
+}
+const tz0 = m => m.rest || m.seg.easy ? null : wk.def.zone;
+
+/* ---------- Gauge screen ---------- */
+const clamp01 = v => Math.max(0, Math.min(1, v));
+function pol(cx, cy, r, a){ const t = a * Math.PI / 180; return [cx + r * Math.sin(t), cy - r * Math.cos(t)]; }
+function arc(cx, cy, r, a0, a1){
+  if (Math.abs(a1 - a0) < 0.3) a1 = a0 + 0.3;
+  const [x0, y0] = pol(cx, cy, r, a0), [x1, y1] = pol(cx, cy, r, a1);
+  return `M${x0.toFixed(1)} ${y0.toFixed(1)}A${r} ${r} 0 ${Math.abs(a1 - a0) > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+function drawGauges(m){
+  // main: split. Left = slower, right = faster; ±20 s around target
+  const A0 = -125, A1 = 125, cx = 150, cy = 120, r = 92;
+  const mid = m.rest ? base2k + 40 : m.tg, slow = mid + 20, fast = mid - 20;
+  const ang = v => A0 + clamp01((slow - v) / (slow - fast)) * (A1 - A0);
+  let h = `<path class="g-track" stroke-width="14" d="${arc(cx, cy, r, A0, A1)}"/>`;
+  if (!m.rest) {
+    h += `<path class="g-band" stroke-width="5" d="${arc(cx, cy, r + 15, ang(m.tg + 2), ang(m.tg - 2))}"/>`;
+    const [tx0, ty0] = pol(cx, cy, r - 12, ang(m.tg)), [tx1, ty1] = pol(cx, cy, r + 20, ang(m.tg));
+    h += `<line class="g-tick" x1="${tx0}" y1="${ty0}" x2="${tx1}" y2="${ty1}"/>`;
+  }
+  if (m.splitV) {
+    const a = ang(m.splitV), [dx, dy] = pol(cx, cy, r, a);
+    h += `<path class="g-fill" data-st="${m.splitSt}" stroke-width="14" d="${arc(cx, cy, r, A0, a)}"/>`;
+    h += `<circle class="g-dot" cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="9"/>`;
+  }
+  const [lx, ly] = pol(cx, cy, r, A0), [rx, ry] = pol(cx, cy, r, A1);
+  h += `<text class="g-l" x="${lx}" y="${ly + 26}" text-anchor="middle">${fmtSplit(slow)}</text>`;
+  h += `<text class="g-l" x="${rx}" y="${ry + 26}" text-anchor="middle">${fmtSplit(fast)}</text>`;
+  h += `<text class="g-l" x="${cx}" y="${cy - 40}" text-anchor="middle">Split /500m</text>`;
+  h += `<text class="g-v" x="${cx}" y="${cy + 18}" text-anchor="middle">${m.split}</text>`;
+  h += `<text class="g-m" data-st="${m.splitSt}" x="${cx}" y="${cy + 44}" text-anchor="middle">${m.rest ? 'easy' : m.splitMsg + ' · ' + m.splitT}</text>`;
+  $('gMain').innerHTML = h;
+
+  // rate: semicircle 14–36 spm
+  const sc = 80, sy = 88, sr = 62, R0 = 14, R1 = 36;
+  const ra = v => -90 + clamp01((v - R0) / (R1 - R0)) * 180;
+  h = `<path class="g-track" stroke-width="12" d="${arc(sc, sy, sr, -90, 90)}"/>`;
+  if (!m.rest) h += `<path class="g-band" stroke-width="4" d="${arc(sc, sy, sr + 12, ra(m.seg.spm[0] - 0.5), ra(m.seg.spm[1] + 0.5))}"/>`;
+  if (m.rateV) h += `<path class="g-fill" data-st="${m.rateSt}" stroke-width="12" d="${arc(sc, sy, sr, -90, ra(m.rateV))}"/>`;
+  h += `<text class="g-l" x="${sc}" y="${sy - 30}" text-anchor="middle">Rate</text>`;
+  h += `<text class="g-v sm" x="${sc}" y="${sy + 4}" text-anchor="middle">${m.rate}</text>`;
+  h += `<text class="g-m" data-st="${m.rateSt}" x="${sc}" y="${sy + 22}" text-anchor="middle">${m.rest ? 'easy' : m.rateMsg}</text>`;
+  $('gRate').innerHTML = h;
+
+  // resistance: 15 segments, target lit, rower's live level outlined
+  h = '';
+  for (let i = 1; i <= 15; i++) {
+    const a0 = -90 + (i - 1) * 12 + 1.6, a1 = -90 + i * 12 - 1.6;
+    const cls = i <= m.res ? 'lit' : (m.live === i ? 'live' : '');
+    h += `<path class="g-seg ${cls}" stroke-width="12" d="${arc(sc, sy, sr, a0, a1)}"/>`;
+  }
+  h += `<text class="g-l" x="${sc}" y="${sy - 30}" text-anchor="middle">Resistance</text>`;
+  h += `<text class="g-v sm" x="${sc}" y="${sy + 4}" text-anchor="middle">${m.res}</text>`;
+  h += `<text class="g-m${m.changing ? ' change' : ''}" data-st="${m.resSt}" x="${sc}" y="${sy + 22}" text-anchor="middle">${m.resT}</text>`;
+  $('gRes').innerHTML = h;
+}
+
+/* ---------- Regatta screen: you vs the target boat on open water ---------- */
+const rc = {d: 0, ph: 0, last: 0, w: 0, h: 0};
+let raceRAF = null;
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+function raceLoop(t){
+  if (!wk || skin !== 'race') { raceRAF = null; return; }
+  drawRace(t); raceRAF = requestAnimationFrame(raceLoop);
+}
+function drawRace(t){
+  const c = $('raceCv'), W = c.clientWidth, H = c.clientHeight, dpr = devicePixelRatio || 1;
+  if (!W || !H) return;
+  if (rc.w !== W || rc.h !== H) { c.width = W * dpr; c.height = H * dpr; rc.w = W; rc.h = H; }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const dt = rc.last ? Math.min(0.1, (t - rc.last) / 1000) : 0; rc.last = t;
+  const seg = wk.def.segs[wk.i], rest = seg.kind === 'rest', el = (wkNow() - wk.start) / 1000;
+  const real = wkDist() - wk.d0;
+  rc.d += (real - rc.d) * Math.min(1, dt * 3); if (Math.abs(real - rc.d) > 40) rc.d = real;
+  const mine = Math.max(0, rc.d), ghost = rest ? mine : el * 500 / tgtSplit(seg), gap = mine - ghost;
+  if (!reducedMotion.matches) rc.ph = (rc.ph + dt * Math.max(state.spm || 0, rest ? 14 : 0) / 60) % 1;
+
+  const hor = H * 0.4, cx = W / 2;
+  // sky + dusk glow
+  let gr = g.createLinearGradient(0, 0, 0, hor);
+  gr.addColorStop(0, '#061825'); gr.addColorStop(1, '#1f5f74'); g.fillStyle = gr; g.fillRect(0, 0, W, hor);
+  gr = g.createRadialGradient(cx, hor, 0, cx, hor, Math.max(W, H) * 0.55);
+  gr.addColorStop(0, 'rgba(255,160,100,.45)'); gr.addColorStop(1, 'rgba(255,160,100,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, hor);
+  // far shore
+  g.fillStyle = '#0a2a38'; g.beginPath(); g.moveTo(0, hor);
+  for (let x = 0; x <= W; x += 8) g.lineTo(x, hor - 6 - 7 * (Math.sin(x * 0.013) + 1) * (Math.sin(x * 0.0041 + 1) + 1.2));
+  g.lineTo(W, hor); g.fill();
+  // water
+  gr = g.createLinearGradient(0, hor, 0, H);
+  gr.addColorStop(0, '#2a7088'); gr.addColorStop(0.25, '#145066'); gr.addColorStop(1, '#041a26'); g.fillStyle = gr; g.fillRect(0, hor, W, H - hor);
+
+  const Z0 = 10, CAM = 27, ppm = Math.min(W, H * 0.9) * 0.16;   // camera puts your boat ~60% down the screen, clear of the HUD
+  const P = (X, z) => { const k = Z0 / Math.max(0.5, z + CAM); return [cx + X * ppm * k, hor + (H - hor) * k, k]; };
+
+  // ripples fixed in the world so they stream past as you row
+  for (let k = 0; k < 90; k++) {
+    const z = ((k * 3.7 - mine) % 333 + 333) % 333 - 8, X = ((k * 53) % 48) - 24;
+    const [x, y, s] = P(X, z); if (y < hor) continue;
+    g.strokeStyle = `rgba(200,240,255,${(0.05 + 0.16 * s).toFixed(3)})`; g.lineWidth = Math.max(0.6, 2 * s);
+    g.beginPath(); g.moveTo(x - 0.9 * ppm * s, y); g.lineTo(x + 0.9 * ppm * s, y); g.stroke();
+  }
+  // lane lines + buoys every 5 m, white marker every 50 m
+  for (const X of [-6, 0, 6]) {
+    const [x0, y0] = P(X, -9);
+    g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.lineTo(cx, hor); g.stroke();
+    for (let mm = Math.floor((mine - 8) / 5) * 5; mm < mine + 260; mm += 5) {
+      const z = mm - mine; if (z < -8) continue;
+      const [x, y, s] = P(X, z), big = mm % 50 === 0;
+      g.globalAlpha = Math.min(1, s * 2.5);
+      g.fillStyle = big ? '#ffffff' : '#ff8a4c';
+      g.beginPath(); g.arc(x, y, Math.max(0.8, (big ? 0.28 : 0.17) * ppm * s), 0, 7); g.fill();
+      if (big && X === -6 && z < 140 && mm > 0) {
+        g.fillStyle = '#ffffff'; g.font = `600 ${Math.max(9, 30 * s).toFixed(0)}px ${tok('--mono') || 'monospace'}`;
+        g.textAlign = 'right'; g.fillText(mm + 'm', x - 8 * s - 4, y + 4 * s);
+      }
+    }
+  }
+  g.globalAlpha = 1; g.textAlign = 'left';
+  // finish line on distance pieces
+  if (seg.d) {
+    const z = seg.d - mine;
+    if (z < 300 && z > -8) {
+      const [xa, ya, s] = P(-6, z), [xb] = P(6, z), n = 12, wSeg = (xb - xa) / n;
+      for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#11303e'; g.fillRect(xa + i * wSeg, ya - Math.max(1.5, 4 * s), wSeg, Math.max(2, 8 * s)); }
+    }
+  }
+  // boats, far one first
+  const boats = [{X: 3, z: 0, col: '#ff7a45', name: 'YOU', you: true},
+                 {X: -3, z: Math.max(-7, Math.min(400, -gap)), col: 'rgba(235,245,250,.55)', name: rest ? 'TARGET' : 'TARGET ' + fmtSplit(tgtSplit(seg))}];
+  boats.sort((a, b) => b.z - a.z).forEach(b => drawShell(g, P, ppm, b));
+
+  if (rest) { g.fillStyle = 'rgba(4,20,30,.35)'; g.fillRect(0, 0, W, H); }
+  // gap badge
+  const gb = $('rGap');
+  if (rest) { gb.textContent = 'Rest · paddle light'; gb.dataset.st = ''; }
+  else { const gm = Math.round(gap); gb.textContent = gm >= 0 ? `+${gm} m ahead` : `${-gm} m behind`; gb.dataset.st = gm >= 0 ? 'ok' : 'bad'; }
+}
+function drawShell(g, P, ppm, b){
+  const L = 4.2, a = Math.sin(rc.ph * Math.PI * 2);
+  const [xf, yf, sf] = P(b.X, b.z + L), [xm, ym, sm] = P(b.X, b.z), [xs, ys] = P(b.X, b.z - L);
+  const hw = 0.38 * ppm;
+  // wake
+  g.strokeStyle = 'rgba(220,245,255,.18)'; g.lineWidth = Math.max(1, 2 * sm);
+  for (const side of [-1, 1]) { const [wx, wy] = P(b.X + side * 1.4, b.z - L - 5); g.beginPath(); g.moveTo(xs, ys); g.lineTo(wx, wy); g.stroke(); }
+  // oars sweep with the stroke
+  g.strokeStyle = b.you ? '#fff4ee' : 'rgba(235,245,250,.5)'; g.lineWidth = Math.max(1, 3 * sm);
+  for (const side of [-1, 1]) {
+    const [ox, oy, os] = P(b.X + side * 3.1, b.z + a * 1.6);
+    g.beginPath(); g.moveTo(xm, ym); g.lineTo(ox, oy); g.stroke();
+    g.fillStyle = g.strokeStyle; g.beginPath(); g.ellipse(ox, oy, Math.max(1.5, 0.35 * ppm * os), Math.max(1, 0.14 * ppm * os), 0, 0, 7); g.fill();
+  }
+  // hull
+  g.fillStyle = b.col; g.beginPath();
+  g.moveTo(xf, yf); g.quadraticCurveTo(xm + hw * 1.1 * sm, ym, xs, ys);
+  g.quadraticCurveTo(xm - hw * 1.1 * sm, ym, xf, yf); g.fill();
+  // rower
+  g.fillStyle = b.you ? '#ffd9c7' : 'rgba(255,255,255,.6)';
+  g.beginPath(); g.arc(xm, ym - 0.5 * ppm * sm - a * 0.15 * ppm * sm, Math.max(2, 0.32 * ppm * sm), 0, 7); g.fill();
+  // label
+  g.fillStyle = b.you ? '#ffffff' : 'rgba(255,255,255,.75)';
+  g.font = `700 ${Math.max(10, 13 * Math.min(1.2, sm * 1.3)).toFixed(0)}px ${tok('--display') || 'sans-serif'}`;
+  g.textAlign = 'center'; g.fillText(b.name, xf, yf - 10); g.textAlign = 'left';
+}
+
+function finishWorkout(early){
+  if (!wk) return;
+  cancelCount();
+  const started = wk.started;
+  if (early && started) endSeg();
+  clearInterval(wk.tick); lastResults = wk.results; const def = wk.def, kcal0 = wk.kcal0 ?? 0; wk = null;
+  delete document.body.dataset.mode; delete document.body.dataset.phase; delete document.body.dataset.paused;
+  exitFs();
+  if (!started) { render(); window.scrollTo(0, 0); return; }
+  beep(3);
+  const sessObj = buildWorkoutSession(def, lastResults, !early, kcal0);
+  const rec = recordSession(sessObj);
+  document.body.dataset.page = 'home'; renderHome();
+  showSummary(sessObj, rec);
+  speak((early ? 'Workout ended. ' : 'Workout complete. ') + `${sessObj.dist} metres` + (sessObj.split ? `, work split ${fmtSplit(sessObj.split)}.` : '.') + (rec.pbs.length ? ' New personal best!' : ''), true);
+  const test = def.id === '2k' && lastResults.find(r => r.seg.d === 2000 && r.dist >= 1990);
+  $('use2k').hidden = !test; $('use2k').dataset.v = test ? test.split : '';
+  render();
+  window.scrollTo(0, 0);
+}
+
+/* ---------- bluetooth ---------- */
+async function connect(all = false){
+  $('err').hidden = true;
+  try {
+    device = await bleOpen({services: [FTMS], optionalServices: [HR_SVC], namePrefixes: ['MERACH', 'Merach'], all,
+      onDisconnect: () => { setStatus('demo', 'Disconnected — tap Connect to retry'); $('connect').textContent = 'Connect rower'; }});
+    stopDemo();
+    setStatus('demo', 'Connecting to ' + (device.name || 'rower') + '…');
+    await device.sub(FTMS, ROWER_DATA, v => {
+      pktLog.push(performance.now()); while (pktLog.length > 60) pktLog.shift();
+      lastHex = [...new Uint8Array(v.buffer, v.byteOffset, v.byteLength)].map(b => b.toString(16).padStart(2, '0')).join(' ');
+      ingest(parseRower(v));
+    });
+    try { await device.sub(HR_SVC, HR_MEAS, v => { if (!strapLive()) state.hr = (v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1)) || null; }); } catch {}
+    zeroOffsets(); reset();
+    setStatus('live', 'Live · ' + (device.name || 'Rower'));
+    $('connect').textContent = 'Disconnect';
+  } catch (e) {
+    if (!isCancel(e)) showErr(all ? (e.message || String(e)) : (e.message || String(e)) + ' — if your rower doesn’t appear, try “Show all devices”.');
+    if (!device?.gatt?.connected) { device = null; if (!demoTimer) startDemo(); }
+  }
+}
+function disconnect(){ device?.gatt?.disconnect(); device = null; $('connect').textContent = 'Connect rower'; startDemo(); }
+function reset(){ off = {...raw}; state = blank(); if (strapLive()) state.hr = strapHr; samples = []; localStart = null; strokeLog.length = 0; rawSpm = null; if (wk) { wk.dist0 = 0; beginSeg(); } render(); }
+function setStatus(s, t){ $('status').dataset.s = s; $('statusText').textContent = t; }
+function showErr(t){ $('err').textContent = t; $('err').hidden = false; }
+
+function exportCsv(){
+  const cols = ['t','dist','split','spm','strokes','watts','kcal','hr','res','target','targetRes','rest'];
+  const rows = [cols.join(',')].concat(samples.map(s => cols.map(c => s[c] ?? '').join(',')));
+  saveFile('row-' + new Date().toISOString().slice(0,16).replace(':','') + '.csv', rows.join('\n'), 'text/csv');
+}
+
+/* ---------- demo: follows the running workout, including its resistance ---------- */
+function startDemo(){
+  stopDemo(); zeroOffsets(); reset(); setStatus('demo', 'Demo data — connect your rower');
+  let t = 0, dist = 0, strokes = 0, kcal = 0, wSum = 0, res = 6;
+  demoTimer = setInterval(() => {
+    t += 1;
+    if (wk?.paused) { ingest({time: t, spm: 0, watts: 0, split: null, hr: Math.round(105 + 3*Math.sin(t/15))}); return; }
+    const seg = wk?.def.segs[wk.i];
+    const rest = seg?.kind === 'rest';
+    if (seg && (!wk.resChangeAt || Date.now() - wk.resChangeAt > 4000)) res = seg.res;   // "you" adjust a few seconds after the cue
+    const aim = seg && !rest ? tgtSplit(seg) : base2k + (rest ? 45 : 18);
+    const split = aim + 2.5*Math.sin(t/9) + (Math.random()*3 - 1.5);
+    const rate = seg && !rest ? (seg.spm[0] + seg.spm[1]) / 2 : rest ? 16 : 20;
+    const watts = 2.8 / Math.pow(split/500, 3);
+    dist += 500/split; wSum += watts; kcal += watts*4/4184 + 0.0833; strokes += rate/60;
+    ingest({time:t, split, dist, spm: rate + Math.round(Math.random()*2 - 1), strokes: Math.floor(strokes), watts, avgW: wSum/t, kcal,
+      hr: Math.round(120 + (base2k + 45 - split) * 0.9 + 4*Math.sin(t/20)), res});
+  }, 1000);
+}
+function stopDemo(){ clearInterval(demoTimer); demoTimer = null; }
+
+/* ---------- charts ---------- */
+function setupCanvas(c){
+  const r = c.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  c.width = r.width*dpr; c.height = r.height*dpr;
+  const g = c.getContext('2d'); g.scale(dpr, dpr); return [g, r.width, r.height];
+}
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function drawTrace(){
+  const c = $('trace'); if (!c.offsetParent) return;
+  const [g, w, h] = setupCanvas(c);
+  const key = $('metric').value, win = +$('win').value;
+  const pts = (win ? samples.slice(-win) : samples);
+  if (pts.length < 2) return;
+  const vals = pts.map(p => p[key]).filter(v => v != null && v > 0);
+  if (!vals.length) { g.fillStyle = tok('--muted'); g.font = '13px ' + tok('--body'); g.fillText('No data for this metric yet', 8, h/2); return; }
+  const inv = key === 'split';
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (inv) pts.forEach(p => { if (p.target) { lo = Math.min(lo, p.target); hi = Math.max(hi, p.target); } });
+  const pad = Math.max(2, (hi - lo) * 0.15); lo -= pad; hi += pad; if (!inv) lo = Math.max(0, lo);
+  const padL = 46, padB = 4, pw = w - padL, ph = h - padB;
+  const x = i => padL + i/(pts.length-1)*pw;
+  const y = v => inv ? (v - lo)/(hi - lo)*ph : ph - (v - lo)/(hi - lo)*ph;
+  g.fillStyle = tok('--rest');
+  pts.forEach((p, i) => { if (p.rest && i < pts.length-1) g.fillRect(x(i), 0, x(i+1) - x(i) + 0.5, ph); });
+  g.strokeStyle = tok('--line'); g.lineWidth = 1; g.fillStyle = tok('--muted'); g.font = '11px ' + tok('--mono');
+  for (let k = 0; k <= 3; k++) {
+    const v = lo + (hi - lo) * k/3, yy = y(v);
+    g.beginPath(); g.moveTo(padL, yy); g.lineTo(w, yy); g.stroke();
+    g.fillText(inv ? fmtSplit(v) : Math.round(v), 2, Math.min(ph - 2, Math.max(10, yy + 4)));
+  }
+  if (inv) {
+    g.strokeStyle = tok('--muted'); g.setLineDash([4, 4]); g.beginPath(); let on = false;
+    pts.forEach((p, i) => { if (p.target && !p.rest) { on ? g.lineTo(x(i), y(p.target)) : g.moveTo(x(i), y(p.target)); on = true; } else on = false; });
+    g.stroke(); g.setLineDash([]);
+  }
+  const accent = tok('--accent');
+  g.beginPath(); let started = false, lastI = 0;
+  pts.forEach((p, i) => { const v = p[key]; if (v == null || v <= 0) return; started ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v)); started = true; lastI = i; });
+  g.strokeStyle = accent; g.lineWidth = 2; g.stroke();
+  const lv = pts[lastI][key]; if (lv) { g.fillStyle = accent; g.beginPath(); g.arc(x(lastI), y(lv), 3.5, 0, 7); g.fill(); }
+}
+
+function drawBoat(){
+  const c = $('boat'); if (!c.offsetParent) return;
+  const [g, w, h] = setupCanvas(c);
+  const mine = state.dist, theirs = state.time * 500 / (base2k + 18);
+  $('boatNote').textContent = 'The target boat rows at your 2k split + 18 s (' + fmtSplit(base2k + 18) + ' /500m).';
+  const gapM = mine - theirs;
+  $('gap').textContent = (gapM >= 0 ? '+' : '−') + Math.abs(Math.round(gapM)) + ' m';
+  $('gap').style.color = gapM >= 0 ? tok('--ok') : tok('--bad');
+  const lane = h/2, range = 60;
+  g.strokeStyle = tok('--line'); g.lineWidth = 1;
+  [lane, h].forEach(yy => { g.beginPath(); g.moveTo(0, yy - 0.5); g.lineTo(w, yy - 0.5); g.stroke(); });
+  g.fillStyle = tok('--muted'); g.font = '10px ' + tok('--mono');
+  const centre = w*0.5, pxPerM = (w*0.45)/range;
+  for (let m = Math.ceil((mine - range*1.2)/10)*10; m < mine + range*1.2; m += 10) {
+    const xx = centre + (m - mine)*pxPerM; g.globalAlpha = m % 50 === 0 ? 0.9 : 0.35;
+    g.fillRect(xx, h - 6, 1, 6); g.fillRect(xx, lane - 6, 1, 6);
+    if (m % 50 === 0) g.fillText(Math.round(m) + 'm', xx + 3, h - 8);
+  }
+  g.globalAlpha = 1;
+  const boat = (xx, yy, color, name) => {
+    g.fillStyle = color; g.beginPath(); g.ellipse(xx, yy, 34, 6, 0, 0, 7); g.fill();
+    g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); g.moveTo(xx - 4, yy - 22); g.lineTo(xx + 6, yy + 22); g.stroke();
+    g.fillStyle = tok('--ink'); g.font = '600 11px ' + tok('--body'); g.fillText(name, xx - 34, yy - 12);
+  };
+  const tx = Math.max(20, Math.min(w - 40, centre + (theirs - mine)*pxPerM));
+  boat(tx, lane*0.55, tok('--muted'), 'Target');
+  boat(centre, lane + lane*0.55, tok('--accent'), 'You');
+}
+
+/* ---------- heart rate: strap + zones ---------- */
+let maxHr = +store.get('maxHr', '185') || 185;
+const ZONES = [
+  {n: 1, hi: .60, name: 'Recovery'}, {n: 2, hi: .70, name: 'Endurance'}, {n: 3, hi: .80, name: 'Tempo'},
+  {n: 4, hi: .90, name: 'Threshold'}, {n: 5, hi: 9, name: 'Max'}];
+const zoneOf = hr => hr ? ZONES.find(z => hr / maxHr < z.hi).n : null;
+const zTxt = z => z ? (z[0] === z[1] ? 'Z' + z[0] : `Z${z[0]}–${z[1]}`) : '';
+function zoneState(hr, tz){
+  const z = zoneOf(hr); if (!tz || !z) return '';
+  return z >= tz[0] && z <= tz[1] ? 'ok' : (z === tz[0] - 1 || z === tz[1] + 1) ? 'warn' : 'bad';
+}
+
+let hrDev = null, strapHr = null, strapAt = 0;
+const strapLive = () => !!hrDev?.gatt?.connected && Date.now() - strapAt < 5000;
+async function connectHr(){
+  $('err').hidden = true;
+  try {
+    hrDev = await bleOpen({services: [HR_SVC], onDisconnect: () => { strapHr = null; syncHrBtn(); }});
+    await hrDev.sub(HR_SVC, HR_MEAS, v => {
+      strapHr = (v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1)) || null;
+      strapAt = Date.now(); state.hr = strapHr; syncHrBtn(); render();
+    });
+    syncHrBtn();
+  } catch (e) { if (!isCancel(e)) showErr(e.message || String(e)); }
+}
+function syncHrBtn(){
+  const on = !!hrDev?.gatt?.connected;
+  $('hrBtn').textContent = on ? '♥ ' + (strapHr ?? '–') + ' bpm' : 'Heart rate strap';
+  $('hrBtn').classList.toggle('on', on);
+}
+const hrbarHtml = () => '<div class="hz">' + ZONES.map(z => `<i data-z="${z.n}"></i>`).join('') + '</div><span class="hrtxt"></span>';
+function updHrBars(root, tz){
+  if (!root) return;
+  const hr = state.hr, z = zoneOf(hr);
+  root.querySelectorAll('.hrbar').forEach(b => {
+    b.hidden = !hr; if (!hr) return;
+    [...b.firstChild.children].forEach((el, i) => {
+      el.classList.toggle('lit', i + 1 === z);
+      el.classList.toggle('tgt', !!tz && i + 1 >= tz[0] && i + 1 <= tz[1]);
+    });
+    b.lastChild.textContent = `♥ ${hr} bpm · Zone ${z} ${ZONES[z - 1].name}` + (tz ? ` · target ${zTxt(tz)}` : '');
+    b.dataset.st = zoneState(hr, tz);
+  });
+}
+function zoneBarHtml(zone){
+  if (!zone || !zone.some(Boolean)) return '';
+  return '<div class="zt">' + zone.map((v, i) => v ? `<span style="flex:${v};background:var(--z${i + 1})"></span>` : '').join('') + '</div>' +
+    '<div class="zleg">' + zone.map((v, i) => v ? `<span><i style="background:var(--z${i + 1})"></i>Z${i + 1} ${fmtTime(v)}</span>` : '').join('') + '</div>';
+}
+
+/* ---------- per-session accumulator (heart rate, free-row marks, call-outs) ---------- */
+const sess = {zone: [0, 0, 0, 0, 0], hrSum: 0, hrN: 0, hrMax: 0, marks: {}, freeMark: 0};
+function sessReset(){ Object.assign(sess, {zone: [0, 0, 0, 0, 0], hrSum: 0, hrN: 0, hrMax: 0, marks: {}, freeMark: 0}); }
+const hrSummary = () => ({hrAvg: sess.hrN ? Math.round(sess.hrSum / sess.hrN) : null, hrMax: sess.hrMax || null, zone: sess.hrN ? sess.zone.slice() : null});
+setInterval(() => {
+  const free = !wk && document.body.dataset.page === 'free';
+  const active = wk ? wk.started && !wk.paused : free && state.spm > 0;
+  if (active && state.hr) { const z = zoneOf(state.hr); sess.zone[z - 1]++; sess.hrSum += state.hr; sess.hrN++; sess.hrMax = Math.max(sess.hrMax, state.hr); }
+  if (free && state.dist > 0) {
+    for (const t of [2000, 5000]) if (!sess.marks[t] && state.dist >= t) sess.marks[t] = state.time;
+    if (!sess.marks.m30 && state.time >= 1800) sess.marks.m30 = Math.round(state.dist);
+    if (voiceEvery && state.spm > 0) {
+      const k = Math.floor(state.dist / voiceEvery);
+      if (k > sess.freeMark) { sess.freeMark = k; speak(`${k * voiceEvery} metres. Split ${fmtSplit(state.split)}.`); }
+    }
+  }
+}, 1000);
+
+/* ---------- history ---------- */
+const HKEY = 'rowlog.sessions.v1';
+const loadHist = () => { try { return JSON.parse(localStorage.getItem(HKEY)) || []; } catch { return []; } };
+const saveHist = h => { try { localStorage.setItem(HKEY, JSON.stringify(h)); return true; } catch { return false; } };
+const fmtDist = m => m >= 10000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m).toLocaleString() + ' m';
+function weekStart(d){ const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; }
+const fmtDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short'}) + ' · ' + d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'}); };
+
+function bests(h){
+  const b = {k2: null, k5: null, m30: null, w: {}};
+  for (const s of h) {
+    const k2 = s.k2 ?? s.marks?.[2000]; if (k2 && (!b.k2 || k2 < b.k2.v)) b.k2 = {v: k2, s};
+    const k5 = s.marks?.[5000];          if (k5 && (!b.k5 || k5 < b.k5.v)) b.k5 = {v: k5, s};
+    const m30 = s.m30 ?? s.marks?.m30;   if (m30 && (!b.m30 || m30 > b.m30.v)) b.m30 = {v: m30, s};
+    if (s.kind === 'workout' && s.done && s.split) { const c = b.w[s.wid]; if (!c || s.split < c.v) b.w[s.wid] = {v: s.split, s}; }
+  }
+  return b;
+}
+function newPBs(s, b){
+  const out = [];
+  const k2 = s.k2 ?? s.marks?.[2000]; if (k2 && (!b.k2 || k2 < b.k2.v)) out.push(`2000 m in ${fmtTime(k2)}`);
+  const k5 = s.marks?.[5000];          if (k5 && (!b.k5 || k5 < b.k5.v)) out.push(`5000 m in ${fmtTime(k5)}`);
+  const m30 = s.m30 ?? s.marks?.m30;   if (m30 && (!b.m30 || m30 > b.m30.v)) out.push(`${Math.round(m30)} m in 30 minutes`);
+  if (s.kind === 'workout' && s.done && s.split && b.w[s.wid] && s.split < b.w[s.wid].v) out.push(`${s.name} at ${fmtSplit(s.split)} /500m`);
+  return out;
+}
+function recordSession(s){
+  const demo = !device?.gatt?.connected, short = s.dist < 100;
+  const h = loadHist(), pbs = newPBs(s, bests(h));
+  if (demo || short) return {saved: false, demo, short, pbs: []};
+  h.unshift(s);
+  const saved = saveHist(h.slice(0, 1000));
+  renderHome();
+  return {saved, demo, short, pbs: saved ? pbs : []};
+}
+function buildWorkoutSession(def, results, done, kcal0){
+  const secs = results.reduce((a, r) => a + r.secs, 0), dist = results.reduce((a, r) => a + r.dist, 0);
+  const work = results.filter(r => r.seg.kind === 'work' && !r.seg.easy && r.dist > 5);
+  const wsecs = work.reduce((a, r) => a + r.secs, 0), wdist = work.reduce((a, r) => a + r.dist, 0);
+  const wavg = k => { const xs = work.filter(r => r[k]); const t = xs.reduce((a, r) => a + r.secs, 0); return t ? xs.reduce((a, r) => a + r[k] * r.secs, 0) / t : null; };
+  const k2r = def.id === '2k' ? results.find(r => r.seg.d === 2000 && r.dist >= 1990) : null;
+  const m30r = def.id === '30r20' ? results.find(r => r.seg.t === 1800 && r.secs >= 1795) : null;
+  return {id: Date.now().toString(36), date: new Date().toISOString(), kind: 'workout', wid: def.id, name: def.name, done,
+    secs: Math.round(secs), dist: Math.round(dist), split: wdist > 5 ? wsecs / wdist * 500 : null, spm: wavg('spm'), w: wavg('w'),
+    kcal: Math.max(0, Math.round(state.kcal - kcal0)), ...hrSummary(),
+    k2: k2r ? k2r.secs : null, m30: m30r ? Math.round(m30r.dist) : null,
+    steps: results.map(r => ({l: segLabel(r.seg), k: r.seg.kind, res: r.seg.res, d: Math.round(r.dist), t: Math.round(r.secs), sp: r.split, spm: r.spm, w: r.w}))};
+}
+function saveFree(){
+  const xs = samples.filter(p => p.spm > 0);
+  const s = {id: Date.now().toString(36), date: new Date().toISOString(), kind: 'free', name: 'Free row', done: true,
+    secs: Math.round(state.time), dist: Math.round(state.dist), split: state.dist > 5 ? state.time / state.dist * 500 : null,
+    spm: xs.length ? xs.reduce((a, p) => a + p.spm, 0) / xs.length : null, w: state.avgW || null, kcal: Math.round(state.kcal),
+    ...hrSummary(), marks: {...sess.marks}};
+  const r = recordSession(s);
+  setPage('home');
+  showSummary(s, r);
+  speak(r.saved ? `Session saved. ${s.dist} metres.` + (r.pbs.length ? ' New personal best!' : '') : '', true);
+}
+const stepRows = steps => steps.map((st, i) => `<tr><td>${i + 1}. ${st.l}</td><td>${st.res}</td><td>${st.d} m</td><td>${fmtTime(st.t)}</td><td>${fmtSplit(st.sp)}</td><td>${st.spm ? st.spm.toFixed(1) : '–'}</td><td>${st.w ? Math.round(st.w) : '–'}</td></tr>`).join('');
+function showSummary(s, r){
+  $('sumTitle').textContent = s.name + (s.kind === 'workout' ? (s.done ? ' — complete' : ' — ended early') : '');
+  const stat = (l, v) => `<div><div class="label">${l}</div><b>${v}</b></div>`;
+  $('sumStats').innerHTML = stat('Distance', fmtDist(s.dist)) + stat('Time', fmtTime(s.secs)) +
+    stat(s.kind === 'workout' ? 'Work split' : 'Avg split', fmtSplit(s.split)) + stat('Avg rate', s.spm ? s.spm.toFixed(1) : '–') +
+    stat('Avg power', s.w ? Math.round(s.w) + ' W' : '–') + (s.hrAvg ? stat('Heart rate', `${s.hrAvg} <small>avg</small> ${s.hrMax} <small>max</small>`) : '');
+  $('sumPbs').innerHTML = r.pbs.map(p => `<div class="pb"><span>PB</span>New personal best: ${p}</div>`).join('');
+  $('sumZones').innerHTML = zoneBarHtml(s.zone);
+  $('sumTableWrap').hidden = !s.steps;
+  $('sumBody').innerHTML = s.steps ? stepRows(s.steps) : '';
+  $('sumNote').textContent = r.saved ? 'Saved to your history.'
+    : r.demo ? 'Demo data — not saved. Connect your rower to keep a record.'
+    : r.short ? 'Under 100 m — not saved.' : 'Couldn’t save: this browser’s storage is full or blocked.';
+  $('summary').hidden = false;
+}
+
+function renderHome(){
+  const h = loadHist(), ws = weekStart(new Date()), week = h.filter(s => new Date(s.date) >= ws), b = bests(h);
+  $('yrWeek').textContent = fmtDist(week.reduce((a, s) => a + s.dist, 0));
+  $('yrCount').textContent = week.length;
+  $('yrK2').textContent = b.k2 ? fmtTime(b.k2.v) : '–';
+}
+function weeksSvg(h){
+  const W = 640, H = 190, pl = 8, pb = 24, pt = 22, ws = weekStart(new Date()), weeks = [];
+  for (let i = 7; i >= 0; i--) {
+    const a = new Date(ws); a.setDate(a.getDate() - 7 * i); const e = new Date(a); e.setDate(e.getDate() + 7);
+    weeks.push({a, m: h.filter(s => { const d = new Date(s.date); return d >= a && d < e; }).reduce((x, s) => x + s.dist, 0)});
+  }
+  const max = Math.max(1000, ...weeks.map(w => w.m)), bw = (W - pl * 2) / 8;
+  return weeks.map((w, i) => {
+    const bh = (H - pb - pt) * w.m / max, x = pl + i * bw + bw * .18, y = H - pb - bh, cx = x + bw * .32;
+    return `<rect class="hb${i === 7 ? ' now' : ''}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw * .64).toFixed(1)}" height="${Math.max(bh, w.m ? 2 : 0).toFixed(1)}" rx="4"/>` +
+      (w.m ? `<text class="hv" x="${cx.toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle">${w.m >= 1000 ? (w.m / 1000).toFixed(1) + 'k' : w.m}</text>` : '') +
+      `<text class="hl" x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle">${i === 7 ? 'This wk' : w.a.toLocaleDateString(undefined, {day: 'numeric', month: 'short'})}</text>`;
+  }).join('') + `<line class="hax" x1="${pl}" x2="${W - pl}" y1="${H - pb}" y2="${H - pb}"/>`;
+}
+function trendSvg(h){
+  const xs = h.filter(s => s.split).slice(0, 20).reverse();
+  if (xs.length < 2) return '<text class="hl" x="320" y="95" text-anchor="middle">Row a few sessions to see your trend</text>';
+  const W = 640, H = 190, pl = 76, pr = 16, pt = 14, pb = 14;
+  let lo = Math.min(...xs.map(s => s.split)), hi = Math.max(...xs.map(s => s.split));
+  const pad = Math.max(2, (hi - lo) * .15); lo -= pad; hi += pad;
+  const x = i => pl + i * (W - pl - pr) / (xs.length - 1), y = v => pt + (v - lo) / (hi - lo) * (H - pt - pb);   // faster sits higher
+  let g = '';
+  for (let k = 0; k <= 3; k++) { const v = lo + (hi - lo) * k / 3; g += `<line class="tg" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="hl" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${fmtSplit(v)}</text>`; }
+  const d = xs.map((s, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(s.split).toFixed(1)}`).join('');
+  return g + `<path class="tl" d="${d}"/>` + xs.map((s, i) => `<circle class="td${i === xs.length - 1 ? ' last' : ''}" cx="${x(i).toFixed(1)}" cy="${y(s.split).toFixed(1)}" r="${i === xs.length - 1 ? 5 : 3.5}"><title>${s.name} · ${fmtSplit(s.split)}</title></circle>`).join('');
+}
+function renderHistory(){
+  const h = loadHist(), now = new Date(), ws = weekStart(now), w4 = new Date(ws); w4.setDate(w4.getDate() - 21);
+  const sum = xs => xs.reduce((a, s) => a + s.dist, 0);
+  const tile = (l, v) => `<div class="panel ht"><div class="label">${l}</div><b>${v}</b></div>`;
+  $('hStats').innerHTML = tile('This week', fmtDist(sum(h.filter(s => new Date(s.date) >= ws)))) +
+    tile('Last 4 weeks', fmtDist(sum(h.filter(s => new Date(s.date) >= w4)))) + tile('All time', fmtDist(sum(h))) + tile('Sessions', h.length);
+  $('hWeeks').innerHTML = weeksSvg(h);
+  $('hTrend').innerHTML = trendSvg(h);
+  const b = bests(h), row = (l, v, s) => `<div class="pbrow"><span>${l}</span><b>${v}</b><small>${s ? new Date(s.date).toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'}) : ''}</small></div>`;
+  let pb = '';
+  if (b.k2) pb += row('2000 m', fmtTime(b.k2.v), b.k2.s);
+  if (b.k5) pb += row('5000 m', fmtTime(b.k5.v), b.k5.s);
+  if (b.m30) pb += row('30 minutes', fmtDist(b.m30.v), b.m30.s);
+  for (const w of WORKOUTS) if (b.w[w.id]) pb += row(w.name, fmtSplit(b.w[w.id].v) + ' <small>/500m</small>', b.w[w.id].s);
+  $('hPbs').innerHTML = pb || '<p class="note">Row the 2000 m Test, or 2000 m in Free row, to set your first benchmark. Finished workouts record your best average split.</p>';
+  $('hList').innerHTML = h.length ? h.map(s => `
+    <details class="panel sess">
+      <summary>
+        <div class="s-top"><b>${s.name}${s.kind === 'workout' && !s.done ? ' <small>(ended early)</small>' : ''}</b><span>${fmtDate(s.date)}</span></div>
+        <div class="s-nums"><span>${fmtDist(s.dist)}</span><span>${fmtTime(s.secs)}</span><span>${fmtSplit(s.split)} /500m</span>${s.hrAvg ? `<span>♥ ${s.hrAvg}</span>` : ''}</div>
+      </summary>
+      <div class="s-body">
+        ${zoneBarHtml(s.zone)}
+        ${s.steps ? `<div class="tablewrap"><table><thead><tr><th>Step</th><th>Res</th><th>Distance</th><th>Time</th><th>Avg split</th><th>Avg rate</th><th>Avg W</th></tr></thead><tbody>${stepRows(s.steps)}</tbody></table></div>` : ''}
+        <div class="row"><span class="note">${s.spm ? 'Avg rate ' + s.spm.toFixed(1) + ' · ' : ''}${s.w ? Math.round(s.w) + ' W · ' : ''}${s.kcal} kcal</span><button class="del" data-del="${s.id}">Delete</button></div>
+      </div>
+    </details>`).join('') : '<p class="note">No sessions yet. Finish a workout, or use Finish &amp; save in Free row, and it will show up here.</p>';
+}
+function exportHistory(){
+  saveFile('row-log-history-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(loadHist(), null, 1), 'application/json');
+}
+
+/* ---------- voice coach ---------- */
+let voiceOn = store.get('voice', '1') === '1', voiceEvery = +store.get('voiceEvery', '250');
+function speak(t, urgent){
+  if (!voiceOn || !t) return;
+  if (NATIVE && N.TextToSpeech) {
+    (urgent ? N.TextToSpeech.stop().catch(() => {}) : Promise.resolve())
+      .then(() => N.TextToSpeech.speak({text: t, lang: 'en-GB', rate: 1.0, category: 'playback', queueStrategy: urgent ? 0 : 1})).catch(() => {});
+    return;
+  }
+  if (!('speechSynthesis' in window)) return;
+  try { if (urgent) speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'en-GB'; u.rate = 1.05; speechSynthesis.speak(u); } catch {}
+}
+function primeVoice(){   // phones only allow speech that starts from a tap
+  try { if (voiceOn && 'speechSynthesis' in window && !primeVoice.done) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); primeVoice.done = true; } } catch {}
+}
+const sayTime = s => { s = Math.round(s); if (s < 60) return `${s} seconds`; const m = Math.floor(s / 60), r = s % 60; return `${m} minute${m > 1 ? 's' : ''}${r ? ' ' + r : ''}`; };
+const sayAmount = seg => seg.d ? `${seg.d} metres` : sayTime(seg.t);
+const sayRate = seg => seg.spm[0] === seg.spm[1] ? `rate ${seg.spm[0]}` : `rate ${seg.spm[0]} to ${seg.spm[1]}`;
+function announceStep(first){
+  if (!wk) return;
+  const seg = wk.def.segs[wk.i], prev = wk.def.segs[wk.i - 1], short = seg.t && seg.t < 30;
+  const res = first ? ` Resistance ${seg.res}.` : prev && prev.res !== seg.res ? ` Change resistance to ${seg.res}.` : '';
+  let t;
+  if (seg.kind === 'rest') t = short ? 'Rest.' : `Rest. ${sayTime(seg.t)}, easy paddle.`;
+  else if (seg.easy) t = `${seg.label}. ${sayAmount(seg)}, ${sayRate(seg)}.`;
+  else t = short ? 'Go!' : `Go! ${sayAmount(seg)} at ${sayRate(seg)}.`;
+  speak(t + res, true);
+}
+function voiceTick(m){
+  if (!voiceOn || !wk || wk.paused) return;
+  const v = wk.v, seg = m.seg, now = Date.now(), hard = seg.kind === 'work' && !seg.easy;
+  if (hard && voiceEvery) {
+    const k = Math.floor(m.dd / voiceEvery);
+    if (k > v.mark) {
+      v.mark = k;
+      if (!(seg.d && seg.d - m.dd < voiceEvery * .4))
+        speak(`${seg.d ? Math.round(seg.d - k * voiceEvery) + ' to go' : k * voiceEvery + ' metres'}. Split ${fmtSplit(state.split)}, rate ${Math.round(state.spm)}.`);
+    }
+  }
+  if (seg.t && seg.t >= 30 && seg.t - m.el <= 10.2 && !v.ten) {
+    v.ten = true; const nx = wk.def.segs[wk.i + 1];
+    speak('10 seconds.' + (nx && nx.res !== seg.res ? ` Get ready for resistance ${nx.res}.` : !nx || !hard ? '' : ' Keep it going!'));
+  }
+  if (seg.d && seg.d >= 500 && seg.d - m.dd <= 100 && !v.hund) { v.hund = true; speak('100 metres to go!'); }
+  if (seg.t && seg.t >= 300 && m.el >= seg.t / 2 && !v.half) { v.half = true; speak(`Halfway. Split ${fmtSplit(state.split)}.`); }
+  if (!hard) return;
+  // gentle nudges, at most one every 30 s
+  v.slow = m.splitSt === 'bad' && m.splitV > m.tg ? (v.slow ?? now) : null;
+  v.rate = m.rateSt === 'bad' ? (v.rate ?? now) : null;
+  if (now - (wk.nudgeAt || 0) > 30000) {
+    if (v.slow && now - v.slow > 15000) { wk.nudgeAt = now; speak(`Pick it up. ${Math.round(m.splitV - m.tg)} seconds off pace.`); }
+    else if (v.rate && now - v.rate > 10000) { wk.nudgeAt = now; speak(state.spm < seg.spm[0] ? `Rate up to ${seg.spm[0]}.` : `Bring the rate down to ${seg.spm[1]}.`); }
+  }
+  const tz = wk.def.zone, z = zoneOf(state.hr);
+  v.hrHi = tz && tz[1] <= 3 && z && z > tz[1] ? (v.hrHi ?? now) : null;
+  if (v.hrHi && now - v.hrHi > 20000 && now - (wk.hrNudgeAt || 0) > 60000) { wk.hrNudgeAt = now; speak('Heart rate is above target. Ease off a little.'); }
+}
+
+/* ---------- installable app ---------- */
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
+addEventListener('appinstalled', () => { installEvt = null; $('installBtn').hidden = true; });
+if (!NATIVE && 'serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+
+/* ---------- wiring ---------- */
+$('connect').onclick = () => device?.gatt?.connected ? disconnect() : connect();
+$('connectAll').onclick = () => { if (device?.gatt?.connected) disconnect(); connect(true); };
+if (NATIVE) {
+  document.body.dataset.app = '';
+  // Android back button: pause a running workout, otherwise go back to the trainings list
+  N.App?.addListener('backButton', () => {
+    if (wk) { if (!wk.paused) pauseW(); return; }
+    if (document.body.dataset.page !== 'home') setPage('home'); else N.App.minimizeApp?.().catch(() => N.App.exitApp());
+  });
+}
+$('reset').onclick = reset;
+$('back').onclick = () => setPage('home');
+$('csv').onclick = exportCsv;
+document.querySelectorAll('.ctl').forEach(el => el.innerHTML =
+  '<button data-act="pause">Pause</button><button data-act="style" aria-label="Change workout screen">Style</button><button data-act="skip">Skip</button><button data-act="fs" aria-label="Toggle fullscreen">Full</button><button data-act="end">End</button>');
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act],[data-pick]'); if (!b) return;
+  if (b.dataset.pick) return setSkin(b.dataset.pick);
+  const a = b.dataset.act;
+  if (a === 'pause') pauseW();
+  else if (a === 'skip' && wk) nextSeg();
+  else if (a === 'end') finishWorkout(true);
+  else if (a === 'fs') fsEl() ? exitFs() : enterFs();
+  else if (a === 'style') setSkin(SKINS[(SKINS.indexOf(skin) + 1) % SKINS.length]);
+});
+syncSkinSeg();
+$('pzGo').onclick = resumeW;
+$('pzReset').onclick = resetW;
+$('pzEnd').onclick = () => finishWorkout(true);
+document.addEventListener('keydown', e => {
+  if (!wk || e.code !== 'Space' || e.target.closest('input,select,textarea')) return;
+  e.preventDefault();
+  if (wk.paused) { if (document.activeElement?.tagName !== 'BUTTON' || document.activeElement === $('pzGo')) resumeW(); } else pauseW();
+});$('closeSum').onclick = () => $('summary').hidden = true;
+$('use2k').onclick = e => { const v = +e.target.dataset.v; if (v) { $('base2k').value = fmtSplit(v); applyBase(); e.target.hidden = true; } };
+$('base2k').addEventListener('change', applyBase);
+function applyBase(){
+  const v = parseSplit($('base2k').value);
+  if (!v || v < 80 || v > 300) { $('base2k').value = fmtSplit(base2k); return; }
+  base2k = v; store.set('base2k', fmtSplit(v)); renderLib();
+}
+document.querySelectorAll('.seg button[data-view]').forEach(b => b.onclick = () => {
+  document.body.dataset.view = b.dataset.view; store.set('view', b.dataset.view);
+  document.querySelectorAll('.seg button[data-view]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  render();
+});
+for (const id of ['metric', 'win']) { $(id).value = store.get(id, $(id).value); $(id).onchange = () => { store.set(id, $(id).value); drawTrace(); }; }
+const v0 = store.get('view', 'dash'); document.querySelector(`.seg button[data-view="${v0}"]`)?.click();
+$('base2k').value = fmtSplit(base2k);
+addEventListener('resize', render);
+setInterval(() => { if (rateSrc === 'strokes' && strokeLog.length >= 3) { const before = Math.round(state.spm); applyRate(); if (Math.round(state.spm) !== before) render(); } else renderDiag(); }, 400);
+$('rateSrc').value = rateSrc;
+$('rateSrc').onchange = () => { rateSrc = $('rateSrc').value; store.set('rateSrc', rateSrc); applyRate(); render(); };
+$('diag').addEventListener('toggle', renderDiag);
+document.querySelectorAll('.hrbar').forEach(b => b.innerHTML = hrbarHtml());
+$('hrBtn').onclick = () => hrDev?.gatt?.connected ? hrDev.gatt.disconnect() : connectHr();
+$('openHist').onclick = () => setPage('history');
+$('histBack').onclick = () => setPage('home');
+$('histExport').onclick = exportHistory;
+$('saveFree').onclick = saveFree;
+$('installBtn').onclick = async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch {} installEvt = null; $('installBtn').hidden = true; };
+$('hList').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  if (!b.hasAttribute('data-armed')) { b.setAttribute('data-armed', ''); b.textContent = 'Tap again to delete'; setTimeout(() => { b.removeAttribute('data-armed'); b.textContent = 'Delete'; }, 4000); return; }
+  saveHist(loadHist().filter(s => s.id !== b.dataset.del)); renderHistory(); renderHome();
+});
+$('maxHr').value = maxHr;
+$('maxHr').onchange = () => { const v = Math.round(+$('maxHr').value); if (v >= 120 && v <= 230) { maxHr = v; store.set('maxHr', String(v)); render(); } else $('maxHr').value = maxHr; };
+$('voiceOn').checked = voiceOn;
+$('voiceOn').onchange = () => { voiceOn = $('voiceOn').checked; store.set('voice', voiceOn ? '1' : '0'); if (voiceOn) primeVoice(); };
+$('voiceEvery').value = String(voiceEvery);
+$('voiceEvery').onchange = () => { voiceEvery = +$('voiceEvery').value; store.set('voiceEvery', String(voiceEvery)); };
+$('voiceTest').onclick = () => { const was = voiceOn; voiceOn = true; speak('Voice coach ready. 1000 metres at rate 24 to 26. Resistance 8.', true); voiceOn = was; };
+keepAwake();
+renderLib();
+renderHome();
+startDemo();
+</script>
+</body>
+</html>
