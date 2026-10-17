@@ -720,10 +720,15 @@ async function bleOpen({services, optionalServices = [], namePrefixes = [], all 
     await B.initialize({androidNeverForLocation: true});
     if (!(await B.isEnabled())) { try { await B.requestEnable(); } catch {} }
     const d = await B.requestDevice(all ? {} : {services: services.map(uuid)});
-    const h = {name: d.name, gatt: {connected: false, disconnect: () => B.disconnect(d.deviceId).catch(() => {})}};
-    await B.connect(d.deviceId, () => { h.gatt.connected = false; onDisconnect?.(); });
+    const h = {name: d.name, subs: [], gatt: {connected: false, disconnect: () => B.disconnect(d.deviceId).catch(() => {})}};
+    const onD = () => { h.gatt.connected = false; onDisconnect?.(); };
+    await B.connect(d.deviceId, onD);
     h.gatt.connected = true;
-    h.sub = (svc, chr, cb) => B.startNotifications(d.deviceId, uuid(svc), uuid(chr), cb);
+    h.sub = (svc, chr, cb) => { h.subs.push([svc, chr, cb]); return B.startNotifications(d.deviceId, uuid(svc), uuid(chr), cb); };
+    h.reconnect = async () => {
+      await B.connect(d.deviceId, onD); h.gatt.connected = true;
+      for (const [svc, chr, cb] of h.subs) await B.startNotifications(d.deviceId, uuid(svc), uuid(chr), cb).catch(() => {});
+    };
     return h;
   }
   if (!navigator.bluetooth) throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge on desktop/Android, or Bluefy on iPhone.');
@@ -731,12 +736,15 @@ async function bleOpen({services, optionalServices = [], namePrefixes = [], all 
     ? {acceptAllDevices: true, optionalServices: [...services, ...optionalServices]}
     : {filters: [...services.map(x => ({services: [x]})), ...namePrefixes.map(x => ({namePrefix: x}))], optionalServices: [...services, ...optionalServices]});
   dev.addEventListener('gattserverdisconnected', () => onDisconnect?.());
-  const server = await dev.gatt.connect();
-  dev.sub = async (svc, chr, cb) => {
+  let server = await dev.gatt.connect();
+  const subs = [], hooked = new WeakSet();
+  const attach = async (svc, chr, cb) => {
     const ch = await (await server.getPrimaryService(svc)).getCharacteristic(chr);
-    ch.addEventListener('characteristicvaluechanged', e => cb(e.target.value));
+    if (!hooked.has(ch)) { hooked.add(ch); ch.addEventListener('characteristicvaluechanged', e => cb(e.target.value)); }   // never double-subscribe after a reconnect
     await ch.startNotifications();
   };
+  dev.sub = (svc, chr, cb) => { subs.push([svc, chr, cb]); return attach(svc, chr, cb); };
+  dev.reconnect = async () => { server = await dev.gatt.connect(); for (const x of subs) await attach(...x).catch(() => {}); };
   return dev;
 }
 // Saves a text file: a download in the browser, the Android share sheet in the app
@@ -825,7 +833,7 @@ function planFor(w, min = selMin){
   const T = Math.max(min, w.min || 0) * 60, p = w.build(T);
   // fill leftover time: a steady block before the cool-down, or a longer cool-down
   const left = T - p.segs.reduce((a, s) => a + segSecs(s), 0), cd = p.segs[p.segs.length - 1];
-  if (!w.fixed && left >= 240) p.segs.splice(p.segs.length - 1, 0, R(60), W(r10(left - 60), [20, 22], 16, 6, 'Steady finish'));
+  if (!w.fixed && left >= 240) p.segs.splice(cd?.easy ? p.segs.length - 1 : p.segs.length, 0, R(60), W(r10(left - 60), [20, 22], 16, 6, 'Steady finish'));
   else if (!w.fixed && left >= 30 && cd?.easy) cd.t = r10(cd.t + left);
   let last = 4; for (const s of p.segs) { if (s.kind === 'rest') s.res = last; else last = s.res; }
   return {...w, ...p, mins: Math.round(p.segs.reduce((a, s) => a + segSecs(s), 0) / 60), short: !w.fixed && min < (w.min || 0)};
@@ -992,7 +1000,11 @@ function applyRate(){
   state.spm = r ?? rawSpm ?? state.spm;
 }
 function ingest(d){
-  for (const k of ['dist', 'time', 'strokes', 'kcal']) if (d[k] != null) { raw[k] = d[k]; d[k] = Math.max(0, d[k] - (off[k] || 0)); }
+  if (d.kcal === 0xffff) delete d.kcal;
+  for (const k of ['dist', 'time', 'strokes', 'kcal']) if (d[k] != null) {
+    if (raw[k] != null && d[k] < raw[k] - (k === 'dist' ? 2 : 0)) off[k] = d[k] - (state[k] || 0);   // rower reset its counter: carry on from where we were
+    raw[k] = d[k]; d[k] = Math.max(0, d[k] - (off[k] || 0));
+  }
   delete d.avgSplit; delete d.avgW;
   if (strapLive()) delete d.hr;
   if (d.spm != null) rawSpm = d.spm;
@@ -1079,7 +1091,7 @@ function startWorkout(def){
   $('summary').hidden = true;
   const now = Date.now();
   wk = {def, i: 0, results: [], t0: now, dist0: state.dist, resChangeAt: 0, tick: setInterval(tickWorkout, 250),
-        paused: true, started: false, pausedAt: now, pausedDist: state.dist, kcal0: state.kcal};
+        paused: true, started: false, pausedAt: now, pausedDist: state.dist, kcal0: state.kcal, real0: realPkts};
   sessReset();
   beginSeg();
   const tl = def.segs.map(s => `<span class="${s.kind}" style="flex:${segSecs(s)}"><i style="width:0"></i></span>`).join('');
@@ -1138,7 +1150,7 @@ function resetW(){
   if (!wk) return;
   cancelCount();
   const now = Date.now();
-  Object.assign(wk, {i: 0, results: [], paused: true, started: false, pausedAt: now, pausedDist: state.dist, t0: now, dist0: state.dist, drawnI: -1, kcal0: state.kcal, nudgeAt: 0, hrNudgeAt: 0});
+  Object.assign(wk, {i: 0, results: [], paused: true, started: false, pausedAt: now, pausedDist: state.dist, t0: now, dist0: state.dist, drawnI: -1, kcal0: state.kcal, nudgeAt: 0, hrNudgeAt: 0, real0: realPkts});
   sessReset();
   beginSeg(); rc.d = 0;
   showPause(); tickWorkout();
@@ -1429,13 +1441,13 @@ function finishWorkout(early){
   cancelCount();
   const started = wk.started;
   if (early && started) endSeg();
-  clearInterval(wk.tick); lastResults = wk.results; const def = wk.def, kcal0 = wk.kcal0 ?? 0; wk = null;
+  clearInterval(wk.tick); lastResults = wk.results; const def = wk.def, kcal0 = wk.kcal0 ?? 0, real0 = wk.real0; wk = null;
   delete document.body.dataset.mode; delete document.body.dataset.phase; delete document.body.dataset.paused;
   exitFs();
   if (!started) { render(); window.scrollTo(0, 0); return; }
   beep(3);
   const sessObj = buildWorkoutSession(def, lastResults, !early, kcal0);
-  const rec = recordSession(sessObj);
+  const rec = recordSession(sessObj, real0);
   document.body.dataset.page = 'home'; renderHome();
   showSummary(sessObj, rec);
   speak((early ? 'Workout ended. ' : 'Workout complete. ') + `${sessObj.dist} metres` + (sessObj.split ? `, work split ${fmtSplit(sessObj.split)}.` : '.') + (rec.pbs.length ? ' New personal best!' : ''), true);
@@ -1449,11 +1461,12 @@ function finishWorkout(early){
 async function connect(all = false){
   $('err').hidden = true;
   try {
-    device = await bleOpen({services: [FTMS], optionalServices: [HR_SVC], namePrefixes: ['MERACH', 'Merach'], all,
-      onDisconnect: () => { setStatus('demo', 'Disconnected — tap Connect to retry'); $('connect').textContent = 'Connect rower'; }});
+    manualOff = false;
+    device = await bleOpen({services: [FTMS], optionalServices: [HR_SVC], namePrefixes: ['MERACH', 'Merach'], all, onDisconnect: lostRower});
     stopDemo();
     setStatus('demo', 'Connecting to ' + (device.name || 'rower') + '…');
     await device.sub(FTMS, ROWER_DATA, v => {
+      realPkts++;
       pktLog.push(performance.now()); while (pktLog.length > 60) pktLog.shift();
       lastHex = [...new Uint8Array(v.buffer, v.byteOffset, v.byteLength)].map(b => b.toString(16).padStart(2, '0')).join(' ');
       ingest(parseRower(v));
@@ -1467,7 +1480,21 @@ async function connect(all = false){
     if (!device?.gatt?.connected) { device = null; if (!demoTimer) startDemo(); }
   }
 }
-function disconnect(){ device?.gatt?.disconnect(); device = null; $('connect').textContent = 'Connect rower'; startDemo(); }
+/* The rower can drop the link (sleep, interference). Try to get it back without stopping the workout. */
+let manualOff = false, realPkts = 0, reconnecting = false;
+async function lostRower(){
+  if (manualOff || reconnecting || !device?.reconnect) { if (!manualOff) { setStatus('demo', 'Disconnected — tap Connect to retry'); $('connect').textContent = 'Connect rower'; } return; }
+  reconnecting = true;
+  setStatus('demo', 'Connection lost — reconnecting…');
+  if (wk?.started) speak('Rower disconnected. Reconnecting.', true);
+  for (let i = 0; i < 8 && !manualOff; i++) {
+    await new Promise(r => setTimeout(r, 2500));
+    try { await device.reconnect(); setStatus('live', 'Live · ' + (device.name || 'Rower')); if (wk?.started) speak('Rower reconnected.'); reconnecting = false; return; } catch {}
+  }
+  reconnecting = false;
+  if (!manualOff) { setStatus('demo', 'Disconnected — tap Connect to retry'); $('connect').textContent = 'Connect rower'; if (wk?.started) speak('Could not reconnect to the rower.', true); }
+}
+function disconnect(){ manualOff = true; device?.gatt?.disconnect(); device = null; $('connect').textContent = 'Connect rower'; startDemo(); }
 function reset(){ off = {...raw}; state = blank(); if (strapLive()) state.hr = strapHr; samples = []; localStart = null; strokeLog.length = 0; rawSpm = null; if (wk) { wk.dist0 = 0; beginSeg(); } render(); }
 function setStatus(s, t){ $('status').dataset.s = s; $('statusText').textContent = t; }
 function showErr(t){ $('err').textContent = t; $('err').hidden = false; }
@@ -1622,8 +1649,8 @@ function zoneBarHtml(zone){
 }
 
 /* ---------- per-session accumulator (heart rate, free-row marks, call-outs) ---------- */
-const sess = {zone: [0, 0, 0, 0, 0], hrSum: 0, hrN: 0, hrMax: 0, marks: {}, freeMark: 0};
-function sessReset(){ Object.assign(sess, {zone: [0, 0, 0, 0, 0], hrSum: 0, hrN: 0, hrMax: 0, marks: {}, freeMark: 0}); }
+const sess = {zone: [0, 0, 0, 0, 0], hrSum: 0, hrN: 0, hrMax: 0, marks: {}, freeMark: 0, real0: 0};
+function sessReset(){ Object.assign(sess, {zone: [0, 0, 0, 0, 0], hrSum: 0, hrN: 0, hrMax: 0, marks: {}, freeMark: 0, real0: realPkts}); }
 const hrSummary = () => ({hrAvg: sess.hrN ? Math.round(sess.hrSum / sess.hrN) : null, hrMax: sess.hrMax || null, zone: sess.hrN ? sess.zone.slice() : null});
 setInterval(() => {
   const free = !wk && document.body.dataset.page === 'free';
@@ -1665,8 +1692,8 @@ function newPBs(s, b){
   if (s.kind === 'workout' && s.done && s.split && b.w[s.wid] && s.split < b.w[s.wid].v) out.push(`${s.name} at ${fmtSplit(s.split)} /500m`);
   return out;
 }
-function recordSession(s){
-  const demo = !device?.gatt?.connected, short = s.dist < 100;
+function recordSession(s, real0){
+  const demo = realPkts === real0, short = s.dist < 100;
   const h = loadHist(), pbs = newPBs(s, bests(h));
   if (demo || short) return {saved: false, demo, short, pbs: []};
   h.unshift(s);
@@ -1693,7 +1720,7 @@ function saveFree(){
     secs: Math.round(state.time), dist: Math.round(state.dist), split: state.dist > 5 ? state.time / state.dist * 500 : null,
     spm: xs.length ? xs.reduce((a, p) => a + p.spm, 0) / xs.length : null, w: state.avgW || null, kcal: Math.round(state.kcal),
     ...hrSummary(), marks: {...sess.marks}};
-  const r = recordSession(s);
+  const r = recordSession(s, sess.real0);
   setPage('home');
   showSummary(s, r);
   speak(r.saved ? `Session saved. ${s.dist} metres.` + (r.pbs.length ? ' New personal best!' : '') : '', true);
