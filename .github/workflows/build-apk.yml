@@ -49,3 +49,5 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk RowLog.apk
           TAG="build-${{ github.run_number }}"
           gh release create "$TAG" RowLog.apk --title "Row Log $TAG" --notes "Tap RowLog.apk to download and install." --latest
+          # keep only the three newest builds
+          gh release list --limit 100 --json tagName --jq '.[3:][].tagName' | xargs -r -n1 gh release delete --cleanup-tag --yes
