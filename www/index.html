@@ -276,10 +276,12 @@ body[data-app] .connect-card #installBtn{display:none}
 @media (max-width:560px){.hv{font-size:20px} .hl{font-size:18px} .tl{stroke-width:4} .td{r:6}}
 .hax,.tg{stroke:var(--line)} .tl{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round}
 .td{fill:var(--panel);stroke:var(--accent);stroke-width:2} .td.last{fill:var(--accent)}
+.tl.free,.td.free{stroke:var(--z2)} .td.free.last{fill:var(--z2)}
+.tleg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 5px 0 10px}
 .pbbox{padding:14px 16px;display:flex;flex-direction:column;gap:6px}
 .pbrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
 .pbrow b{font:700 1.3rem var(--display);font-variant-numeric:tabular-nums}
-.pbrow small{font:500 .72rem var(--mono);color:var(--muted)}
+.pbrow span small{margin-left:6px} .pbrow small{font:500 .72rem var(--mono);color:var(--muted)}
 .hlist{display:flex;flex-direction:column;gap:8px}
 .sess{padding:10px 14px}
 .sess summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:4px}
@@ -315,6 +317,7 @@ body[data-mode="workout"][data-paused] .pz{display:grid}
 .pz-awake{margin:0;font:500 .75rem var(--mono);color:var(--muted)}
 .pz-awake[data-ok="true"]{color:var(--ok)}
 .pz-hint{margin:0;font-size:.78rem;color:var(--muted)}
+.pz-warn{margin:0;font-size:.88rem;font-weight:600;color:var(--warn);text-wrap:balance}
 @media (pointer:coarse){.pz-hint{display:none}}
 
 /* shared control cluster on every workout screen */
@@ -459,7 +462,7 @@ body[data-phase="rest"] .g-phase{color:var(--muted)}
   </header>
   <section class="hist hist-stats" id="hStats"></section>
   <section class="hist panel chart hchart"><div class="label">Metres per week</div><svg id="hWeeks" viewBox="0 0 640 190" role="img" aria-label="Metres rowed per week"></svg></section>
-  <section class="hist panel chart hchart"><div class="label">Average split, last 20 sessions (faster is higher)</div><svg id="hTrend" viewBox="0 0 640 190" role="img" aria-label="Average split trend"></svg></section>
+  <section class="hist panel chart hchart"><div class="label tleg">Split, last 20 sessions (faster is higher)<i style="background:var(--accent)"></i>workouts<i style="background:var(--z2)"></i>free rows</div><svg id="hTrend" viewBox="0 0 640 190" role="img" aria-label="Average split trend"></svg></section>
   <section class="hist panel pbbox"><h2>Personal bests</h2><div id="hPbs"></div></section>
   <section class="hist" style="display:flex;flex-direction:column;gap:10px"><h2>Sessions</h2><div class="hlist" id="hList"></div><p class="note">History is kept in this browser on this device.</p></section>
   <header class="free freebar">
@@ -564,7 +567,7 @@ body[data-phase="rest"] .g-phase{color:var(--muted)}
   <section class="home panel summary" id="summary" hidden>
     <div class="row" style="justify-content:space-between">
       <h2 id="sumTitle">Workout complete</h2>
-      <div class="row"><button id="use2k" hidden>Set as my 2k split</button><button id="closeSum">Close</button></div>
+      <div class="row"><button id="use2k" hidden>Set as my 2k split</button><button id="sumCsv" hidden>Export CSV</button><button id="closeSum">Close</button></div>
     </div>
     <div class="sum-stats" id="sumStats"></div>
     <div id="sumPbs"></div>
@@ -696,6 +699,7 @@ body[data-phase="rest"] .g-phase{color:var(--muted)}
     <div class="label" id="pzKicker">Ready</div>
     <h2 id="pzTitle">Workout</h2>
     <p class="pz-info" id="pzInfo"></p>
+    <p class="pz-warn" id="pzWarn" hidden>Rower not connected — this runs on demo data and won’t be saved.</p>
     <div class="pz-count" id="pzCount" hidden>3</div>
     <button class="primary pz-go" id="pzGo">Start</button>
     <div class="pz-row"><button id="pzReset">Reset workout</button><button id="pzEnd">End</button></div>
@@ -714,15 +718,15 @@ const N = window.Native || {};
 const uuid = n => typeof n === 'number' ? `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb` : n;
 const isCancel = e => e?.name === 'NotFoundError' || /cancel/i.test(e?.message || '');
 // Opens a Bluetooth device and returns {name, gatt: {connected, disconnect()}, sub(service, characteristic, cb(DataView))}
-async function bleOpen({services, optionalServices = [], namePrefixes = [], all = false, onDisconnect}){
+async function bleOpen({services, optionalServices = [], namePrefixes = [], all = false, saved = null, onDisconnect}){
   if (NATIVE && N.BleClient) {
     const B = N.BleClient;
     await B.initialize({androidNeverForLocation: true});
     if (!(await B.isEnabled())) { try { await B.requestEnable(); } catch {} }
-    const d = await B.requestDevice(all ? {} : {services: services.map(uuid)});
-    const h = {name: d.name, subs: [], gatt: {connected: false, disconnect: () => B.disconnect(d.deviceId).catch(() => {})}};
+    const d = saved ? {deviceId: saved.id, name: saved.name} : await B.requestDevice(all ? {} : {services: services.map(uuid)});
+    const h = {id: d.deviceId, name: d.name, subs: [], gatt: {connected: false, disconnect: () => B.disconnect(d.deviceId).catch(() => {})}};
     const onD = () => { h.gatt.connected = false; onDisconnect?.(); };
-    await B.connect(d.deviceId, onD);
+    await B.connect(d.deviceId, onD, saved ? {timeout: 8000} : undefined);
     h.gatt.connected = true;
     h.sub = (svc, chr, cb) => { h.subs.push([svc, chr, cb]); return B.startNotifications(d.deviceId, uuid(svc), uuid(chr), cb); };
     h.reconnect = async () => {
@@ -759,6 +763,7 @@ async function saveFile(name, text, mime){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type: mime})); a.download = name; a.click();
 }
+const savedDev = k => { try { const v = JSON.parse(store.get(k, 'null')); return v?.id ? v : null; } catch { return null; } };
 const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 
 /* ---------- workouts ----------
@@ -790,8 +795,8 @@ const WORKOUTS = [
   {id: 'sixmin', name: 'Minute On', tag: 'Intervals', blade: 'chevron', color: '#ff5b35', min: 10,
     desc: 'Hard minutes at a high rate, a minute easy between. Longer sessions split into two sets.',
     build(T){
-      const f = frame(T); let n = clampN(Math.floor((f.main + 60) / 120), 3, 16); const two = n >= 6;
-      if (two) n = clampN(Math.floor((f.main - 60) / 120), 6, 16);
+      const f = frame(T), n2 = Math.floor((f.main - 60) / 120), two = n2 >= 6;
+      const n = two ? Math.min(n2, 16) : clampN(Math.floor((f.main + 60) / 120), 3, 5);
       const a = two ? Math.ceil(n / 2) : n, b = n - a, segs = [warm(f.wu)];
       for (let i = 0; i < a; i++) { segs.push(W(60, [26, 28], 2, 9)); if (i < a - 1 || b) segs.push(R(i < a - 1 ? 60 : 180)); }
       for (let i = 0; i < b; i++) { segs.push(W(60, [24, 26], 4, 9)); if (i < b - 1) segs.push(R(60)); }
@@ -919,7 +924,7 @@ function renderLib(){
 }
 
 /* ---------- live state ---------- */
-let state = blank(), samples = [], device = null, demoTimer = null, wk = null, lastResults = null;
+let state = blank(), samples = [], lastSamples = [], device = null, demoTimer = null, wk = null, lastResults = null;
 function blank(){ return {split:null, avgSplit:null, dist:0, spm:0, strokes:0, watts:0, avgW:0, wSum:0, wN:0, kcal:0, hr:null, res:null, time:0}; }
 let raw = {}, off = {};
 function zeroOffsets(){ raw = {}; off = {}; }
@@ -1016,7 +1021,7 @@ function ingest(d){
   if (d.watts != null && state.spm > 0) { state.wSum += d.watts; state.wN++; state.avgW = state.wSum / state.wN; }
   if (wk && !wk.paused) { const seg = wk.def.segs[wk.i]; if (seg.kind === 'work' && state.spm > 0) { wk.acc.spm += state.spm; wk.acc.w += state.watts; wk.acc.n++; } }
   const now = Date.now();
-  if (now - lastPush > 900) {
+  if (now - lastPush > 900 && (wk || document.body.dataset.page === 'free')) {
     const seg = wk?.def.segs[wk.i];
     samples.push({t: state.time, dist: state.dist, split: state.split, spm: state.spm, strokes: state.strokes, watts: state.watts, kcal: state.kcal, hr: state.hr,
       res: normRes(state.res), rest: seg?.kind === 'rest', target: seg ? tgtSplit(seg) : null, targetRes: seg?.res ?? null});
@@ -1092,7 +1097,7 @@ function startWorkout(def){
   const now = Date.now();
   wk = {def, i: 0, results: [], t0: now, dist0: state.dist, resChangeAt: 0, tick: setInterval(tickWorkout, 250),
         paused: true, started: false, pausedAt: now, pausedDist: state.dist, kcal0: state.kcal, real0: realPkts};
-  sessReset();
+  sessReset(); samples = [];
   beginSeg();
   const tl = def.segs.map(s => `<span class="${s.kind}" style="flex:${segSecs(s)}"><i style="width:0"></i></span>`).join('');
   $('timeline').innerHTML = tl; $('gTimeline').innerHTML = tl;
@@ -1120,6 +1125,7 @@ function showPause(){
   $('pzGo').textContent = wk.started ? 'Resume' : 'Start';
   $('pzGo').hidden = false; $('pzCount').hidden = true;
   $('pzReset').hidden = !wk.started;
+  $('pzWarn').hidden = !!device?.gatt?.connected || reconnecting;
   setTimeout(() => $('pzGo').focus(), 50);
 }
 function pauseW(){
@@ -1151,7 +1157,7 @@ function resetW(){
   cancelCount();
   const now = Date.now();
   Object.assign(wk, {i: 0, results: [], paused: true, started: false, pausedAt: now, pausedDist: state.dist, t0: now, dist0: state.dist, drawnI: -1, kcal0: state.kcal, nudgeAt: 0, hrNudgeAt: 0, real0: realPkts});
-  sessReset();
+  sessReset(); samples = [];
   beginSeg(); rc.d = 0;
   showPause(); tickWorkout();
 }
@@ -1446,6 +1452,7 @@ function finishWorkout(early){
   exitFs();
   if (!started) { render(); window.scrollTo(0, 0); return; }
   beep(3);
+  lastSamples = samples.slice();
   const sessObj = buildWorkoutSession(def, lastResults, !early, kcal0);
   const rec = recordSession(sessObj, real0);
   document.body.dataset.page = 'home'; renderHome();
@@ -1458,25 +1465,30 @@ function finishWorkout(early){
 }
 
 /* ---------- bluetooth ---------- */
-async function connect(all = false){
+async function connect(all = false, saved = null){
   $('err').hidden = true;
   try {
     manualOff = false;
-    device = await bleOpen({services: [FTMS], optionalServices: [HR_SVC], namePrefixes: ['MERACH', 'Merach'], all, onDisconnect: lostRower});
+    if (saved) setStatus('demo', 'Looking for ' + (saved.name || 'your rower') + '…');
+    device = await bleOpen({services: [FTMS], optionalServices: [HR_SVC], namePrefixes: ['MERACH', 'Merach'], all, saved, onDisconnect: lostRower});
+    if (device.id) store.set('rower', JSON.stringify({id: device.id, name: device.name || ''}));
     stopDemo();
     setStatus('demo', 'Connecting to ' + (device.name || 'rower') + '…');
     await device.sub(FTMS, ROWER_DATA, v => {
       realPkts++;
       pktLog.push(performance.now()); while (pktLog.length > 60) pktLog.shift();
       lastHex = [...new Uint8Array(v.buffer, v.byteOffset, v.byteLength)].map(b => b.toString(16).padStart(2, '0')).join(' ');
-      ingest(parseRower(v));
+      let d; try { d = parseRower(v); } catch { return; }   // short or malformed packet
+      ingest(d);
     });
     try { await device.sub(HR_SVC, HR_MEAS, v => { if (!strapLive()) state.hr = (v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1)) || null; }); } catch {}
     zeroOffsets(); reset();
     setStatus('live', 'Live · ' + (device.name || 'Rower'));
     $('connect').textContent = 'Disconnect';
   } catch (e) {
-    if (!isCancel(e)) showErr(all ? (e.message || String(e)) : (e.message || String(e)) + ' — if your rower doesn’t appear, try “Show all devices”.');
+    if (saved) setStatus('demo', 'Demo data — connect your rower');   // rower off or out of range: stay quiet
+    else if (!isCancel(e)) showErr(all ? (e.message || String(e)) : (e.message || String(e)) + ' — if your rower doesn’t appear, try “Show all devices”.');
+    if (device && !device.gatt?.connected) device.gatt?.disconnect?.();
     if (!device?.gatt?.connected) { device = null; if (!demoTimer) startDemo(); }
   }
 }
@@ -1495,13 +1507,13 @@ async function lostRower(){
   if (!manualOff) { setStatus('demo', 'Disconnected — tap Connect to retry'); $('connect').textContent = 'Connect rower'; if (wk?.started) speak('Could not reconnect to the rower.', true); }
 }
 function disconnect(){ manualOff = true; device?.gatt?.disconnect(); device = null; $('connect').textContent = 'Connect rower'; startDemo(); }
-function reset(){ off = {...raw}; state = blank(); if (strapLive()) state.hr = strapHr; samples = []; localStart = null; strokeLog.length = 0; rawSpm = null; if (wk) { wk.dist0 = 0; beginSeg(); } render(); }
+function reset(){ off = {...raw}; state = blank(); if (strapLive()) state.hr = strapHr; samples = []; localStart = null; strokeLog.length = 0; rawSpm = null; if (wk) { wk.dist0 = 0; wk.pausedDist = 0; wk.kcal0 = 0; beginSeg(); } render(); }
 function setStatus(s, t){ $('status').dataset.s = s; $('statusText').textContent = t; }
 function showErr(t){ $('err').textContent = t; $('err').hidden = false; }
 
-function exportCsv(){
+function exportCsv(list = samples){
   const cols = ['t','dist','split','spm','strokes','watts','kcal','hr','res','target','targetRes','rest'];
-  const rows = [cols.join(',')].concat(samples.map(s => cols.map(c => s[c] ?? '').join(',')));
+  const rows = [cols.join(',')].concat(list.map(s => cols.map(c => s[c] ?? '').join(',')));
   saveFile('row-' + new Date().toISOString().slice(0,16).replace(':','') + '.csv', rows.join('\n'), 'text/csv');
 }
 
@@ -1612,16 +1624,17 @@ function zoneState(hr, tz){
 
 let hrDev = null, strapHr = null, strapAt = 0;
 const strapLive = () => !!hrDev?.gatt?.connected && Date.now() - strapAt < 5000;
-async function connectHr(){
-  $('err').hidden = true;
+async function connectHr(saved = null){
+  if (!saved) $('err').hidden = true;
   try {
-    hrDev = await bleOpen({services: [HR_SVC], onDisconnect: () => { strapHr = null; syncHrBtn(); }});
+    hrDev = await bleOpen({services: [HR_SVC], saved, onDisconnect: () => { strapHr = null; syncHrBtn(); }});
+    if (hrDev.id) store.set('strap', JSON.stringify({id: hrDev.id, name: hrDev.name || ''}));
     await hrDev.sub(HR_SVC, HR_MEAS, v => {
       strapHr = (v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1)) || null;
       strapAt = Date.now(); state.hr = strapHr; syncHrBtn(); render();
     });
     syncHrBtn();
-  } catch (e) { if (!isCancel(e)) showErr(e.message || String(e)); }
+  } catch (e) { if (!saved && !isCancel(e)) showErr(e.message || String(e)); }
 }
 function syncHrBtn(){
   const on = !!hrDev?.gatt?.connected;
@@ -1674,13 +1687,15 @@ const fmtDist = m => m >= 10000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m).
 function weekStart(d){ const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; }
 const fmtDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short'}) + ' · ' + d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'}); };
 
+// workout bests are per workout and session length (older sessions have no length recorded)
+const pbKey = s => s.wid + (s.mins ? '@' + s.mins : '');
 function bests(h){
   const b = {k2: null, k5: null, m30: null, w: {}};
   for (const s of h) {
     const k2 = s.k2 ?? s.marks?.[2000]; if (k2 && (!b.k2 || k2 < b.k2.v)) b.k2 = {v: k2, s};
     const k5 = s.marks?.[5000];          if (k5 && (!b.k5 || k5 < b.k5.v)) b.k5 = {v: k5, s};
     const m30 = s.m30 ?? s.marks?.m30;   if (m30 && (!b.m30 || m30 > b.m30.v)) b.m30 = {v: m30, s};
-    if (s.kind === 'workout' && s.done && s.split) { const c = b.w[s.wid]; if (!c || s.split < c.v) b.w[s.wid] = {v: s.split, s}; }
+    if (s.kind === 'workout' && s.done && s.split) { const k = pbKey(s), c = b.w[k]; if (!c || s.split < c.v) b.w[k] = {v: s.split, s}; }
   }
   return b;
 }
@@ -1689,7 +1704,8 @@ function newPBs(s, b){
   const k2 = s.k2 ?? s.marks?.[2000]; if (k2 && (!b.k2 || k2 < b.k2.v)) out.push(`2000 m in ${fmtTime(k2)}`);
   const k5 = s.marks?.[5000];          if (k5 && (!b.k5 || k5 < b.k5.v)) out.push(`5000 m in ${fmtTime(k5)}`);
   const m30 = s.m30 ?? s.marks?.m30;   if (m30 && (!b.m30 || m30 > b.m30.v)) out.push(`${Math.round(m30)} m in 30 minutes`);
-  if (s.kind === 'workout' && s.done && s.split && b.w[s.wid] && s.split < b.w[s.wid].v) out.push(`${s.name} at ${fmtSplit(s.split)} /500m`);
+  const wb = b.w[pbKey(s)];
+  if (s.kind === 'workout' && s.done && s.split && wb && s.split < wb.v) out.push(`${s.name}${s.mins ? ' ' + s.mins + ' min' : ''} at ${fmtSplit(s.split)} /500m`);
   return out;
 }
 function recordSession(s, real0){
@@ -1708,7 +1724,7 @@ function buildWorkoutSession(def, results, done, kcal0){
   const wavg = k => { const xs = work.filter(r => r[k]); const t = xs.reduce((a, r) => a + r.secs, 0); return t ? xs.reduce((a, r) => a + r[k] * r.secs, 0) / t : null; };
   const k2r = def.id === '2k' ? results.find(r => r.seg.d === 2000 && r.dist >= 1990) : null;
   const m30r = def.id === 'steady' ? results.find(r => r.seg.t === 1800 && r.secs >= 1795) : null;
-  return {id: Date.now().toString(36), date: new Date().toISOString(), kind: 'workout', wid: def.id, name: def.name, done,
+  return {id: Date.now().toString(36), date: new Date().toISOString(), kind: 'workout', wid: def.id, name: def.name, mins: def.fixed ? null : def.mins, done,
     secs: Math.round(secs), dist: Math.round(dist), split: wdist > 5 ? wsecs / wdist * 500 : null, spm: wavg('spm'), w: wavg('w'),
     kcal: Math.max(0, Math.round(state.kcal - kcal0)), ...hrSummary(),
     k2: k2r ? k2r.secs : null, m30: m30r ? Math.round(m30r.dist) : null,
@@ -1720,6 +1736,7 @@ function saveFree(){
     secs: Math.round(state.time), dist: Math.round(state.dist), split: state.dist > 5 ? state.time / state.dist * 500 : null,
     spm: xs.length ? xs.reduce((a, p) => a + p.spm, 0) / xs.length : null, w: state.avgW || null, kcal: Math.round(state.kcal),
     ...hrSummary(), marks: {...sess.marks}};
+  lastSamples = samples.slice();
   const r = recordSession(s, sess.real0);
   setPage('home');
   showSummary(s, r);
@@ -1736,6 +1753,7 @@ function showSummary(s, r){
   $('sumZones').innerHTML = zoneBarHtml(s.zone);
   $('sumTableWrap').hidden = !s.steps;
   $('sumBody').innerHTML = s.steps ? stepRows(s.steps) : '';
+  $('sumCsv').hidden = lastSamples.length < 2;
   $('sumNote').textContent = r.saved ? 'Saved to your history.'
     : r.demo ? 'Demo data — not saved. Connect your rower to keep a record.'
     : r.short ? 'Under 100 m — not saved.' : 'Couldn’t save: this browser’s storage is full or blocked.';
@@ -1771,8 +1789,9 @@ function trendSvg(h){
   const x = i => pl + i * (W - pl - pr) / (xs.length - 1), y = v => pt + (v - lo) / (hi - lo) * (H - pt - pb);   // faster sits higher
   let g = '';
   for (let k = 0; k <= 3; k++) { const v = lo + (hi - lo) * k / 3; g += `<line class="tg" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="hl" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${fmtSplit(v)}</text>`; }
-  const d = xs.map((s, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(s.split).toFixed(1)}`).join('');
-  return g + `<path class="tl" d="${d}"/>` + xs.map((s, i) => `<circle class="td${i === xs.length - 1 ? ' last' : ''}" cx="${x(i).toFixed(1)}" cy="${y(s.split).toFixed(1)}" r="${i === xs.length - 1 ? 5 : 3.5}"><title>${s.name} · ${fmtSplit(s.split)}</title></circle>`).join('');
+  const line = free => { const ps = xs.map((s, i) => [s, i]).filter(([s]) => (s.kind === 'free') === free);
+    return ps.length > 1 ? `<path class="tl${free ? ' free' : ''}" d="${ps.map(([s, i], k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)} ${y(s.split).toFixed(1)}`).join('')}"/>` : ''; };
+  return g + line(false) + line(true) + xs.map((s, i) => `<circle class="td${s.kind === 'free' ? ' free' : ''}${i === xs.length - 1 ? ' last' : ''}" cx="${x(i).toFixed(1)}" cy="${y(s.split).toFixed(1)}" r="${i === xs.length - 1 ? 5 : 3.5}"><title>${s.name} · ${fmtSplit(s.split)}</title></circle>`).join('');
 }
 function renderHistory(){
   const h = loadHist(), now = new Date(), ws = weekStart(now), w4 = new Date(ws); w4.setDate(w4.getDate() - 21);
@@ -1787,7 +1806,9 @@ function renderHistory(){
   if (b.k2) pb += row('2000 m', fmtTime(b.k2.v), b.k2.s);
   if (b.k5) pb += row('5000 m', fmtTime(b.k5.v), b.k5.s);
   if (b.m30) pb += row('30 minutes', fmtDist(b.m30.v), b.m30.s);
-  for (const w of WORKOUTS) if (b.w[w.id]) pb += row(w.name, fmtSplit(b.w[w.id].v) + ' <small>/500m</small>', b.w[w.id].s);
+  for (const w of WORKOUTS) for (const k of Object.keys(b.w).filter(k => k.split('@')[0] === w.id).sort((x, y) => (+x.split('@')[1] || 0) - (+y.split('@')[1] || 0))) {
+    const m = k.split('@')[1]; pb += row(w.name + (m ? ` <small>${m} min</small>` : ''), fmtSplit(b.w[k].v) + ' <small>/500m</small>', b.w[k].s);
+  }
   $('hPbs').innerHTML = pb || '<p class="note">Row the 2000 m Test, or 2000 m in Free row, to set your first benchmark. Finished workouts record your best average split.</p>';
   $('hList').innerHTML = h.length ? h.map(s => `
     <details class="panel sess">
@@ -1884,7 +1905,8 @@ if (NATIVE) {
 }
 $('reset').onclick = reset;
 $('back').onclick = () => setPage('home');
-$('csv').onclick = exportCsv;
+$('csv').onclick = () => exportCsv();
+$('sumCsv').onclick = () => exportCsv(lastSamples);
 document.querySelectorAll('.ctl').forEach(el => el.innerHTML =
   '<button data-act="pause">Pause</button><button data-act="style" aria-label="Change workout screen">Style</button><button data-act="skip">Skip</button><button data-act="fs" aria-label="Toggle fullscreen">Full</button><button data-act="end">End</button>');
 document.addEventListener('click', e => {
@@ -1952,6 +1974,8 @@ $('freeBtn').onclick = () => setPage('free');
 renderLib();
 renderHome();
 startDemo();
+// the app remembers the rower and strap: reopen them on launch without the device picker
+if (NATIVE) (async () => { const r = savedDev('rower'), h = savedDev('strap'); if (r) await connect(false, r); if (h && !hrDev) await connectHr(h); })();
 </script>
 </body>
 </html>

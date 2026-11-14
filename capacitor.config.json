@@ -2,6 +2,6 @@
   "appId": "app.rowlog.merach",
   "appName": "Row Log",
   "webDir": "www",
-  "android": { "backgroundColor": "#0c1820" },
-  "plugins": { "StatusBar": { "overlaysWebView": false, "backgroundColor": "#0c1820", "style": "DARK" } }
+  "android": { "backgroundColor": "#0b1315" },
+  "plugins": { "StatusBar": { "overlaysWebView": false, "backgroundColor": "#0b1315", "style": "DARK" } }
 }
